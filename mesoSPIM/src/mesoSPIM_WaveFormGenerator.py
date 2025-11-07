@@ -55,13 +55,20 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
             print("INFO: Config file: The 'laser_designation' dictionary is obsolete, you can remove it.")
         if hasattr(self.cfg, 'galvo_etl_designation'):
             print("INFO: Config file: The 'galvo_etl_designation' dictionary is obsolete, you can remove it.")
-        laser_task_line_start = int(self.cfg.acquisition_hardware['laser_task_line'].split(':')[0].split('ao')[-1])
-        laser_task_line_end = int(self.cfg.acquisition_hardware['laser_task_line'].split(':')[1])
-        if (laser_task_line_end - laser_task_line_start + 1) != len(self.cfg.laserdict):
-            raise ValueError(f"Config file: number of AO lines in 'laser_task_line' "
-                             f"({self.cfg.acquisition_hardware['laser_task_line']}) "
-                             f"must be equal to num(lasers) in 'laserdict' ({len(self.cfg.laserdict)}). "
-                             f"Check assignment of AO channels in 'laser_task_line'.")
+        laser_task_line = self.cfg.acquisition_hardware['laser_task_line']
+        ao_part = laser_task_line.split('/')[-1]
+        ao_numbers = ao_part.replace('ao', '').split(':')
+        laser_task_line_start = int(ao_numbers[0])
+        laser_task_line_end = int(ao_numbers[1]) if len(ao_numbers) > 1 else laser_task_line_start
+        num_ao_lines = laser_task_line_end - laser_task_line_start + 1
+        num_lasers = len(self.cfg.laserdict)
+        if num_ao_lines != num_lasers:
+            raise ValueError(
+                f"Config file: number of AO lines in 'laser_task_line' "
+                f"({laser_task_line}) must be equal to num(lasers) in 'laserdict' ({num_lasers}). "
+                f"Check assignment of AO channels in 'laser_task_line'."
+            )
+        
         if self.state['max_laser_voltage'] > 10:
             self.state['max_laser_voltage'] = 10
             msg = f"Config parameter 'max_laser_voltage' ({self.state['max_laser_voltage']}) is > 10V, which can damage the hardware. Setting to 10V."
