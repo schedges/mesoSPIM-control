@@ -126,10 +126,16 @@ def main(embed_console=False, demo_mode=False):
     #logging.getLogger().addHandler(ex.log_display_handler)
 
     if embed_console:
-        from traitlets.config import Config
+        try:
+            from traitlets.config import Config
+            import IPython
+        except ImportError:
+            print("IPython and/or traitlets not installed; run without -C [--console] or install with pip")
+            print("Exiting...")
+            app.quit()
+            sys.exit(1)
         cfg = Config()
         cfg.InteractiveShellApp.gui = 'qt5'
-        import IPython
         IPython.start_ipython(config=cfg, argv=[], user_ns=dict(mSpim=ex, app=app))
     else:
         sys.exit(app.exec_())
