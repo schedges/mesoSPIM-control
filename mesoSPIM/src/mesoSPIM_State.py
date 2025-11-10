@@ -132,7 +132,7 @@ class mesoSPIM_StateSingleton(QObject):
         with QMutexLocker(self.mutex):
             for key, value in parameters.items():
                 if key not in self._state_dict:
-                    logger.warning(f"Unknown state key '{key}' being added to _state_dict")
+                    logger.warning(f"New state key '{key}' being added to _state_dict")
                 self._state_dict.__setitem__(key, value)
 
     def get_parameter_dict(self, list):
@@ -145,7 +145,9 @@ class mesoSPIM_StateSingleton(QObject):
         return_dict = {}
 
         with QMutexLocker(self.mutex):
-            for key in list:
+            for key in list:    
+                if key not in self._state_dict:
+                    raise KeyError(f"Requested state key '{key}' does not exist in _state_dict.")
                 return_dict[key] = self._state_dict.__getitem__(key)
         
         return return_dict
@@ -163,6 +165,8 @@ class mesoSPIM_StateSingleton(QObject):
 
         with QMutexLocker(self.mutex):
             for key in list:
+                if key not in self._state_dict:
+                    raise KeyError(f"Requested state key '{key}' does not exist in _state_dict.")
                 return_list.append(self._state_dict.__getitem__(key))
         
         return return_list
