@@ -24,7 +24,6 @@ class mesoSPIM_StateSingleton(QObject):
 
     instance = None
     _lock = threading.Lock()
-    #sig_updated = pyqtSignal()
     mutex = QMutex()
 
     def __new__(cls, *args, **kwargs):
@@ -75,7 +74,6 @@ class mesoSPIM_StateSingleton(QObject):
                         'galvo_l_duty_cycle' : 50,
                         'galvo_l_phase' : np.pi/2,
                         'galvo_r_frequency' : 99.9,
-                        #'galvo_r_amplitude' : 0, # not used
                         'galvo_r_offset' : 0,
                         'galvo_r_duty_cycle' : 50,
                         'galvo_r_phase' : np.pi/2,
@@ -100,6 +98,7 @@ class mesoSPIM_StateSingleton(QObject):
                         'moving_to_target': False, # A dirty way to know if moving with wait_untile_done=True is finished from another thread
                         }
 
+    #DELETEIT: can't currently see where this is used
     def __len__(self):
         return len(self._state_dict) 
     
@@ -113,7 +112,6 @@ class mesoSPIM_StateSingleton(QObject):
         with QMutexLocker(self.mutex):
             self._state_dict.__setitem__(key, value)
             logger.debug('State changed: {} = {}'.format(key, value))
-        #self.sig_updated.emit()
 
     def __getitem__(self, key):
         '''
@@ -134,7 +132,6 @@ class mesoSPIM_StateSingleton(QObject):
         with QMutexLocker(self.mutex):
             for key, value in dict.items():
                 self._state_dict.__setitem__(key, value)
-        #self.sig_updated.emit()
 
     def get_parameter_dict(self, list):
         '''
@@ -168,6 +165,7 @@ class mesoSPIM_StateSingleton(QObject):
         
         return return_list
 
+    #DELETEIT: don't see used in text
     def block_signals(self, boolean):
         self.blockSignals(boolean)
         
