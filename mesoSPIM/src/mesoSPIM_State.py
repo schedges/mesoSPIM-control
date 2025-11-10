@@ -124,13 +124,15 @@ class mesoSPIM_StateSingleton(QObject):
         with QMutexLocker(self.mutex):
             return self._state_dict.__getitem__(key)
 
-    def set_parameters(self, dict):
+    def set_parameters(self, parameters):
         '''
         Sometimes, several parameters should be set at once 
         without allowing the state being updated while a parameter is read.
         '''
         with QMutexLocker(self.mutex):
-            for key, value in dict.items():
+            for key, value in parameters.items():
+                if key not in self._state_dict:
+                    logger.warning(f"Unknown state key '{key}' being added to _state_dict")
                 self._state_dict.__setitem__(key, value)
 
     def get_parameter_dict(self, list):
