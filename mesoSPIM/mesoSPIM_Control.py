@@ -25,6 +25,7 @@ from mesoSPIM.src.mesoSPIM_MainWindow import mesoSPIM_MainWindow
 def load_config_UI():
     '''
     Bring up a GUI that allows the user to select a microscope configuration to import
+    Only called if multiple non-demo configs are in the ./config path
     '''
     cfg_app = QtWidgets.QApplication(sys.argv)
     current_path = os.path.abspath('./config')
