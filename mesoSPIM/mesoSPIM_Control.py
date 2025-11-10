@@ -22,7 +22,7 @@ sys.path.append(os.path.dirname(package_directory)) # this is critical for 'from
 from mesoSPIM.src.mesoSPIM_MainWindow import mesoSPIM_MainWindow
 
 
-def load_config_UI(current_path):
+def load_config_UI():
     '''
     Bring up a GUI that allows the user to select a microscope configuration to import
     '''
@@ -137,7 +137,7 @@ def main(embed_console=False, demo_mode=False):
             config_fname = os.path.join(package_directory, all_configs_no_demo[0])
             cfg = load_config_from_file(config_fname)
         else:
-            cfg, config_fname = load_config_UI(os.path.join(package_directory, 'config'))
+            cfg, config_fname = load_config_UI()
     logger = get_logger(cfg, package_directory)
     logger.info(f'Config file loaded: {config_fname}')
     logger.info(f'mesoSPIM-control version: {__version__}')
