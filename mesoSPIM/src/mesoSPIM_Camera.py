@@ -54,8 +54,8 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.camera_line_interval = self.cfg.startup['camera_line_interval']
         self.camera_exposure_time = self.cfg.startup['camera_exposure_time']
 
-        self.camera_display_live_subsampling = self.cfg.startup.get('camera_display_live_subsampling')
-        self.camera_display_acquisition_subsampling = self.cfg.startup.get('camera_display_acquisition_subsampling')
+        self.camera_display_live_subsampling = self.cfg.startup['camera_display_live_subsampling']
+        self.camera_display_acquisition_subsampling = self.cfg.startup['camera_display_acquisition_subsampling']
         if 'camera_display_temporal_subsampling' in self.cfg.startup.keys():
             self.camera_display_temporal_subsampling = self.cfg.startup['camera_display_temporal_subsampling']
         else:
