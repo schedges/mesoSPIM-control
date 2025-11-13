@@ -6,8 +6,6 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.uic import loadUi
 ''' Disabled taskbar button progress display due to problems with Anaconda default'''
-# if sys.platform == 'win32':
-#     from PyQt5.QtWinExtras import QWinTaskbarButton
 
 from .mesoSPIM_CameraWindow import mesoSPIM_CameraWindow
 from .mesoSPIM_AcquisitionManagerWindow import mesoSPIM_AcquisitionManagerWindow
@@ -23,38 +21,8 @@ from .utils.utility_functions import log_cpu_core
 
 logger = logging.getLogger(__name__)
 
-# discontinued to increase performance. Not actually useful for the user.
-# class LogDisplayHandler(QtCore.QObject, logging.Handler):
-#     """ Handler class to display log in a TextDisplay widget. A thread-safe version, callable from non-GUI threads."""
-#     new_record = QtCore.pyqtSignal(object)
-
-#     def __init__(self, parent):
-#         super().__init__(parent)
-#         super(logging.Handler).__init__()
-#         formatter = Formatter('%(levelname)s:%(module)s:%(funcName)s:%(message)s')
-#         self.setFormatter(formatter)
-
-#     def emit(self, record):
-#         msg = self.format(record)
-#         self.new_record.emit(msg)  # <---- emit signal here
-
-
-# class Formatter(logging.Formatter):
-#     """ Formatter of the LogDisplayHandler class."""
-#     def formatException(self, ei):
-#         result = super(Formatter, self).formatException(ei)
-#         return result
-
-#     def format(self, record):
-#         s = super(Formatter, self).format(record)
-#         if record.exc_text:
-#             s = s.replace('\n', '')
-#         return s
-
-
 class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
     """ Main application window which instantiates worker objects and moves them to a thread. """
-    # sig_live = QtCore.pyqtSignal()
     sig_stop = QtCore.pyqtSignal()
     sig_finished = QtCore.pyqtSignal()
     sig_enable_gui = QtCore.pyqtSignal(bool)
@@ -87,11 +55,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         # Setting up the user interface windows
         loadUi(self.package_directory + '/gui/mesoSPIM_MainWindow.ui', self)
         self.setWindowTitle(title)
-
-        # Discontinued
-        # Connect log display widget
-#        self.log_display_handler = LogDisplayHandler(self)
-#        self.log_display_handler.new_record.connect(self.LogTextDisplay.appendPlainText)
 
         self.camera_window = mesoSPIM_CameraWindow(self)
         self.camera_window.show()
@@ -155,14 +118,11 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.core.sig_warning.connect(self.display_warning)
 
         self.sig_move_absolute.connect(self.core.move_absolute, type=QtCore.Qt.QueuedConnection)
-        # Set stages, revolver, filter to initialization positions defined in the config file:
-        #self.sig_move_to_ini_position.connect(self.core.move_to_initial_positions, type=QtCore.Qt.QueuedConnection)
 
         self.optimizer = None
         self.contrast_window = None
 
         # Signal from state to GUI
-        #self.state.sig_updated.connect(self.update_gui_from_state) # too frequent updates because of stage polling
         # The signal switchboard, MainWindow -> Core
         self.sig_launch_optimizer.connect(self.launch_optimizer)
         self.sig_launch_contrast_window.connect(self.launch_contrast_window)
@@ -180,6 +140,7 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.acquisition_manager_window.mark_all_current_parameters() # initialize the first dummy raw with the current state
         self.joystick = mesoSPIM_JoystickHandler(self)
 
+    #DELETEIT: Seems like this should not be needed if we have the variables defined in StateSingleton with default values
     def check_config_file(self):
         """Checks missing blocks in config file and gives suggestions.
         Todo: all new config options
@@ -241,7 +202,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             pass
 
     def close_app(self):
-        #self.log_display_handler.flushOnClose = False #discontinued
         logger.info('Closing the application')
         self.camera_window.close()
         self.acquisition_manager_window.close()
@@ -330,7 +290,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
                 self.Z_Position_Indicator.setText(self.pos2str(self.z_position)+' µm')
                 self.Focus_Position_Indicator.setText(self.pos2str(self.f_position)+' µm')
                 self.Rotation_Position_Indicator.setText(self.pos2str(self.theta_position)+'°')
-                #self.state['position'] = dict['position'] # this must be done in the core thread
 
     @QtCore.pyqtSlot(dict)
     def update_progressbars(self,dict):
@@ -379,10 +338,10 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.actionCascade_windows.triggered.connect(self.cascade_all_windows)
 
     def initialize_and_connect_widgets(self):
-        """ Connecting the menu actions """
-        self.openScriptEditorButton.clicked.connect(self.create_script_window)
+      def initialize_and_connect_widgets(self):
+        """ Connecting GUI widgets to their respective slots """
 
-        ''' Connecting the movement & zero buttons '''
+        ''' Movement tab '''
         if 'flip_XYZFT_button_polarity' in self.cfg.ui_options.keys():
             x_sign = -1 if self.cfg.ui_options['flip_XYZFT_button_polarity'][0] else 1
             y_sign = -1 if self.cfg.ui_options['flip_XYZFT_button_polarity'][1] else 1
@@ -413,10 +372,8 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.xyzLoadButton.clicked.connect(self.sig_load_sample.emit)
         self.xyzUnloadButton.clicked.connect(self.sig_unload_sample.emit)
         self.centerButton.clicked.connect(self.sig_center_sample.emit)
-        self.launchOptimizerButton.clicked.connect(lambda: self.sig_launch_optimizer.emit({'mode': 'etl_offset', 'amplitude': 0.5}))
-        self.ContrastWindowButton.clicked.connect(lambda: self.sig_launch_contrast_window.emit())
 
-        ''' Disabling UI buttons if necessary '''
+        #Initially disable UI buttons if specified, but can be re-enabled by other parts of the code
         if hasattr(self.cfg, 'ui_options'):
             if self.cfg.ui_options['enable_x_buttons'] is False:
                 self.enable_move_buttons('x', False)
@@ -446,31 +403,52 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
                 self.xyzLoadButton.setEnabled(False)
                 self.xyzUnloadButton.setEnabled(False)
 
-        ''' Connecting state-changing buttons '''
+        ''' ETL tab'''
+        self.launchOptimizerButton.clicked.connect(lambda: self.sig_launch_optimizer.emit({'mode': 'etl_offset', 'amplitude': 0.5}))
+        self.ETLIncrementSpinBox.valueChanged.connect(self.update_etl_increments)
+        self.ZeroLeftETLButton.toggled.connect(self.zero_left_etl)
+        self.ZeroRightETLButton.toggled.connect(self.zero_right_etl)
+        self.freezeGalvoButton.toggled.connect(self.zero_galvo_amp)
+        self.ETLconfigIndicator.setText(self.state['ETL_cfg_file'])
+
+        ''' Scripting tab '''
+        self.openScriptEditorButton.clicked.connect(self.create_script_window)
+
+        ''' Parameters tab '''
+        self.ChooseSnapFolderButton.clicked.connect(self.choose_snap_folder)
+        self.SnapFolderIndicator.setText(self.state['snap_folder'])
+        #List for subsampling factors - comboboxes need a list of strings
+        subsampling_list = [str(i) for i in self.cfg.camera_parameters['subsampling']]
+        self.connect_combobox_to_state_parameter(self.BinningComboBox, self.cfg.binning_dict.keys(),'camera_binning')
+
+        self.checkBoxScaleWZoom.stateChanged.connect(self.scale_galvo_amp_w_zoom)
+        self.LaserIntensitySlider.valueChanged.connect(self.set_laser_intensity)
+        self.LaserIntensitySpinBox.valueChanged.connect(self.set_laser_intensity)
+
+        ''' Alignment tab'''
+        self.ContrastWindowButton.clicked.connect(lambda: self.sig_launch_contrast_window.emit())
+        self.LightsheetSwitchingModeButton.clicked.connect(self.run_lightsheet_alignment_mode)
+        self.VisualModeButton.clicked.connect(self.run_visual_mode)
+
+
+        ''' Persistent lower half of the main window '''
         self.LiveButton.clicked.connect(self.run_live)
         self.SnapButton.clicked.connect(self.run_snap)
         self.RunSelectedAcquisitionButton.clicked.connect(self.run_selected_acquisition)
         self.RunAcquisitionListButton.clicked.connect(self.run_acquisition_list)
         self.StopButton.clicked.connect(lambda: self.sig_state_request.emit({'state':'idle'}))
-        self.LightsheetSwitchingModeButton.clicked.connect(self.run_lightsheet_alignment_mode)
-        self.VisualModeButton.clicked.connect(self.run_visual_mode)
-
-        self.ETLIncrementSpinBox.valueChanged.connect(self.update_etl_increments)
-        self.ZeroLeftETLButton.toggled.connect(self.zero_left_etl)
-        self.ZeroRightETLButton.toggled.connect(self.zero_right_etl)
-        self.freezeGalvoButton.toggled.connect(self.zero_galvo_amp)
-
         self.ChooseETLcfgButton.clicked.connect(self.choose_etl_config)
         self.SaveETLParametersButton.clicked.connect(self.save_etl_config)
-
-        self.ChooseSnapFolderButton.clicked.connect(self.choose_snap_folder)
-        self.SnapFolderIndicator.setText(self.state['snap_folder'])
-        self.ETLconfigIndicator.setText(self.state['ETL_cfg_file'])
-
         self.ShutterComboBox.currentIndexChanged.connect(self.update_GUI_by_shutter_state)
+        self.LaserIntensitySlider.setValue(self.cfg.startup['intensity'])
 
+        self.connect_combobox_to_state_parameter(self.FilterComboBox,self.cfg.filterdict.keys(),'filter')
+        self.connect_combobox_to_state_parameter(self.ZoomComboBox,self.cfg.zoomdict.keys(),'zoom')
+        self.connect_combobox_to_state_parameter(self.ShutterComboBox,self.cfg.shutteroptions,'shutterconfig')
+        self.connect_combobox_to_state_parameter(self.LaserComboBox,self.cfg.laserdict.keys(),'laser')
+
+        #Defines conversion factors for each element
         self.widget_to_state_parameter_assignment=(
-            (self.FilterComboBox, 'filter',1),
             (self.FilterComboBox, 'filter',1),
             (self.ZoomComboBox, 'zoom',1),
             (self.ShutterComboBox, 'shutterconfig',1),
@@ -478,7 +456,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             (self.LaserIntensitySlider, 'intensity', 1),
             (self.LaserIntensitySpinBox, 'intensity', 1),
             (self.CameraExposureTimeSpinBox, 'camera_exposure_time',1000),
-            #(self.CameraLineIntervalSpinBox,'camera_line_interval',1000000),
             (self.CameraTriggerDelaySpinBox,'camera_delay_%',1),
             (self.CameraTriggerPulseLengthSpinBox, 'camera_pulse_%',1),
             (self.SweeptimeSpinBox,'sweeptime',1000),
@@ -491,7 +468,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             (self.GalvoFrequencySpinBox,'galvo_r_frequency',1),
             (self.GalvoFrequencySpinBox,'galvo_l_frequency',1),
             (self.LeftGalvoAmplitudeSpinBox,'galvo_l_amplitude',1),
-            #(self.LeftGalvoAmplitudeSpinBox,'galvo_r_amplitude',1),
             (self.LeftGalvoPhaseSpinBox,'galvo_l_phase',1),
             (self.RightGalvoPhaseSpinBox,'galvo_r_phase',1),
             (self.LeftGalvoOffsetSpinBox, 'galvo_l_offset',1),
@@ -507,29 +483,8 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             (self.LeftETLRampFallingSpinBox, 'etl_l_ramp_falling_%',1),
             (self.RightETLRampFallingSpinBox, 'etl_r_ramp_falling_%',1),
         )
-
         for widget, state_parameter, conversion_factor in self.widget_to_state_parameter_assignment:
             self.connect_widget_to_state_parameter(widget, state_parameter, conversion_factor)
-
-        ''' Connecting the microscope controls '''
-
-        ''' List for subsampling factors - comboboxes need a list of strings'''
-        subsampling_list = [str(i) for i in self.cfg.camera_parameters['subsampling']]
-
-        self.connect_combobox_to_state_parameter(self.FilterComboBox,self.cfg.filterdict.keys(),'filter')
-        self.connect_combobox_to_state_parameter(self.ZoomComboBox,self.cfg.zoomdict.keys(),'zoom')
-        self.connect_combobox_to_state_parameter(self.ShutterComboBox,self.cfg.shutteroptions,'shutterconfig')
-        self.connect_combobox_to_state_parameter(self.LaserComboBox,self.cfg.laserdict.keys(),'laser')
-        # self.connect_combobox_to_state_parameter(self.CameraSensorModeComboBox,['ASLM','Area'],'camera_sensor_mode')
-        self.connect_combobox_to_state_parameter(self.LiveSubSamplingComboBox,subsampling_list,'camera_display_live_subsampling', int_conversion = True)
-        self.connect_combobox_to_state_parameter(self.AcquisitionSubSamplingComboBox,subsampling_list,'camera_display_acquisition_subsampling', int_conversion = True)
-        # self.connect_combobox_to_state_parameter(self.CameraSensorModeComboBox,['ASLM','Area'],'camera_sensor_mode')
-        self.connect_combobox_to_state_parameter(self.BinningComboBox, self.cfg.binning_dict.keys(),'camera_binning')
-
-        self.checkBoxScaleWZoom.stateChanged.connect(self.scale_galvo_amp_w_zoom)
-        self.LaserIntensitySlider.valueChanged.connect(self.set_laser_intensity)
-        self.LaserIntensitySpinBox.valueChanged.connect(self.set_laser_intensity)
-        self.LaserIntensitySlider.setValue(self.cfg.startup['intensity'])
 
     def enable_move_buttons(self, axis='x', state=True):
         if axis == 'x':
@@ -697,10 +652,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             self.enable_mode_control_buttons(False)
             self.enable_stop_button(True)
             self.enable_gui(False)
-            ''' Disabled taskbar button progress display due to problems with Anaconda default
-            if sys.platform == 'win32':
-                self.win_taskbar_button.progress().setVisible(True)
-            '''
 
     def run_acquisition_list(self):
         self.state['selected_row'] = -1
@@ -708,30 +659,18 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.enable_mode_control_buttons(False)
         self.enable_stop_button(True)
         self.enable_gui(False)
-        ''' Disabled taskbar button progress display due to problems with Anaconda default
-        if sys.platform == 'win32':
-            self.win_taskbar_button.progress().setVisible(True)
-        '''
 
     def run_lightsheet_alignment_mode(self):
         self.sig_state_request.emit({'state':'lightsheet_alignment_mode'})
         self.set_progressbars_to_busy()
         self.enable_mode_control_buttons(False)
         self.enable_stop_button(True)
-        ''' Disabled taskbar button progress display due to problems with Anaconda default
-        if sys.platform == 'win32':
-            self.win_taskbar_button.progress().setVisible(False)
-        '''
     
     def run_visual_mode(self):
         self.sig_state_request.emit({'state':'visual_mode'})
         self.set_progressbars_to_busy()
         self.enable_mode_control_buttons(False)
         self.enable_stop_button(True)
-        ''' Disabled taskbar button progress display due to problems with Anaconda default
-        if sys.platform == 'win32':
-            self.win_taskbar_button.progress().setVisible(False)
-        '''
 
     @QtCore.pyqtSlot(int)
     def run_timepoint(self, timepoint):
@@ -787,21 +726,12 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.AcquisitionProgressBar.setMaximum(0)
         self.TotalProgressBar.setMinimum(0)
         self.TotalProgressBar.setMaximum(0)
-        ''' Disabled taskbar button progress display due to problems with Anaconda default
-        if sys.platform == 'win32':
-            self.win_taskbar_button.progress().setVisible(False)
-        '''
     
     def set_progressbars_to_standard(self):
         self.AcquisitionProgressBar.setMinimum(0)
         self.AcquisitionProgressBar.setMaximum(100)
         self.TotalProgressBar.setMinimum(0)
         self.TotalProgressBar.setMaximum(100)
-        ''' Disabled taskbar button progress display due to problems with Anaconda default
-        if sys.platform == 'win32':
-            self.win_taskbar_button.progress().setValue(0)
-            self.win_taskbar_button.progress().setVisible(False)
-        '''
 
     def update_etl_increments(self):
         increment = self.ETLIncrementSpinBox.value()
@@ -860,14 +790,11 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         if self.freezeGalvoButton.isChecked():
             self.galvo_amp_backup = self.LeftGalvoAmplitudeSpinBox.value()
             self.state['galvo_l_amplitude'] = 0
-            #self.state['galvo_r_amplitude'] = 0
             self.freezeGalvoButton.setText('Unfreeze galvos')
         else:
             self.state['galvo_l_amplitude'] = self.galvo_amp_backup
-            #self.state['galvo_r_amplitude'] = self.galvo_amp_backup
             self.freezeGalvoButton.setText('Freeze galvos')
         self.sig_state_request.emit({'galvo_l_amplitude': self.state['galvo_l_amplitude']})
-        #self.sig_state_request.emit({'galvo_r_amplitude': self.state['galvo_r_amplitude']})
 
     def choose_etl_config(self):
         ''' File dialog for choosing the config file
@@ -891,7 +818,7 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         warning = QtWidgets.QMessageBox.warning(None,'mesoSPIM Warning', string, QtWidgets.QMessageBox.Ok)
 
     def choose_snap_folder(self):
-        path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Open csv File', self.state['snap_folder'])
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Open Directory', self.state['snap_folder'])
         if path:
             self.state['snap_folder'] = path
             self.SnapFolderIndicator.setText(path)
