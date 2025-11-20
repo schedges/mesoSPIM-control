@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>964</width>
-    <height>1336</height>
+    <width>1205</width>
+    <height>1370</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -882,7 +882,7 @@
               </property>
               <property name="font">
                <font>
-                <pointsize>16</pointsize>
+                <pointsize>14</pointsize>
                 <weight>50</weight>
                 <italic>false</italic>
                 <bold>false</bold>
@@ -1012,7 +1012,7 @@
               </property>
               <property name="font">
                <font>
-                <pointsize>16</pointsize>
+                <pointsize>14</pointsize>
                 <weight>50</weight>
                 <italic>false</italic>
                 <bold>false</bold>
@@ -1101,7 +1101,7 @@
                 </property>
                 <property name="font">
                  <font>
-                  <pointsize>16</pointsize>
+                  <pointsize>14</pointsize>
                   <weight>50</weight>
                   <bold>false</bold>
                  </font>
@@ -1127,7 +1127,7 @@
                 </property>
                 <property name="font">
                  <font>
-                  <pointsize>16</pointsize>
+                  <pointsize>14</pointsize>
                   <weight>50</weight>
                   <bold>false</bold>
                  </font>
@@ -1150,7 +1150,7 @@
                 </property>
                 <property name="font">
                  <font>
-                  <pointsize>16</pointsize>
+                  <pointsize>14</pointsize>
                  </font>
                 </property>
                 <property name="toolTip">
@@ -1237,7 +1237,7 @@
              </property>
              <property name="font">
               <font>
-               <pointsize>16</pointsize>
+               <pointsize>14</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -1355,7 +1355,7 @@
              </property>
              <property name="font">
               <font>
-               <pointsize>16</pointsize>
+               <pointsize>14</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -1539,7 +1539,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>16</pointsize>
+               <pointsize>14</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -1698,7 +1698,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -1716,7 +1716,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -1737,7 +1737,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="toolTip">
@@ -1836,7 +1836,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -1863,7 +1863,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -1938,7 +1938,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="acceptDrops">
@@ -1959,7 +1959,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -1977,7 +1977,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -2005,7 +2005,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
               <weight>50</weight>
               <italic>false</italic>
               <bold>false</bold>
@@ -2043,7 +2043,7 @@ Focus</string>
               <rect>
                <x>20</x>
                <y>40</y>
-               <width>187</width>
+               <width>200</width>
                <height>83</height>
               </rect>
              </property>
@@ -2052,7 +2052,7 @@ Focus</string>
                <widget class="QPushButton" name="freezeGalvoButton">
                 <property name="font">
                  <font>
-                  <pointsize>14</pointsize>
+                  <pointsize>12</pointsize>
                  </font>
                 </property>
                 <property name="toolTip">
@@ -2070,7 +2070,7 @@ Focus</string>
                <widget class="QPushButton" name="launchOptimizerButton">
                 <property name="font">
                  <font>
-                  <pointsize>14</pointsize>
+                  <pointsize>12</pointsize>
                  </font>
                 </property>
                 <property name="toolTip">
@@ -2103,7 +2103,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
               <weight>50</weight>
               <bold>false</bold>
              </font>
@@ -2214,7 +2214,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>12</pointsize>
+               <pointsize>11</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2232,7 +2232,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>12</pointsize>
+               <pointsize>11</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2310,7 +2310,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2451,7 +2451,7 @@ Focus</string>
                <widget class="QLabel" name="label_40">
                 <property name="font">
                  <font>
-                  <pointsize>12</pointsize>
+                  <pointsize>11</pointsize>
                  </font>
                 </property>
                 <property name="text">
@@ -2511,7 +2511,7 @@ Focus</string>
                <widget class="QLabel" name="label_41">
                 <property name="font">
                  <font>
-                  <pointsize>12</pointsize>
+                  <pointsize>11</pointsize>
                  </font>
                 </property>
                 <property name="text">
@@ -2575,7 +2575,7 @@ Focus</string>
                  </font>
                 </property>
                 <property name="text">
-                 <string>Max Amplitude</string>
+                 <string>Max Amp.</string>
                 </property>
                </widget>
               </item>
@@ -2640,7 +2640,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>12</pointsize>
+               <pointsize>10</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2662,7 +2662,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="title">
@@ -2679,7 +2679,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2700,7 +2700,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="suffix">
@@ -2766,7 +2766,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2784,7 +2784,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2805,7 +2805,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="toolTip">
@@ -2907,7 +2907,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="text">
@@ -2979,7 +2979,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
               </font>
              </property>
              <property name="toolTip">
@@ -3133,7 +3133,7 @@ Focus</string>
                <widget class="QLabel" name="label_53">
                 <property name="font">
                  <font>
-                  <pointsize>12</pointsize>
+                  <pointsize>11</pointsize>
                  </font>
                 </property>
                 <property name="text">
@@ -3193,7 +3193,7 @@ Focus</string>
                <widget class="QLabel" name="label_54">
                 <property name="font">
                  <font>
-                  <pointsize>12</pointsize>
+                  <pointsize>11</pointsize>
                  </font>
                 </property>
                 <property name="text">
@@ -3262,7 +3262,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>12</pointsize>
+               <pointsize>10</pointsize>
               </font>
              </property>
              <property name="text">
@@ -3281,7 +3281,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="title">
@@ -3298,7 +3298,7 @@ Focus</string>
              </property>
              <property name="font">
               <font>
-               <pointsize>14</pointsize>
+               <pointsize>12</pointsize>
                <weight>50</weight>
                <italic>false</italic>
                <bold>false</bold>
@@ -3342,7 +3342,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="title">
@@ -3353,7 +3353,7 @@ Focus</string>
               <widget class="QLabel" name="label_48">
                <property name="font">
                 <font>
-                 <pointsize>14</pointsize>
+                 <pointsize>11</pointsize>
                 </font>
                </property>
                <property name="text">
@@ -3365,7 +3365,7 @@ Focus</string>
               <widget class="QComboBox" name="LiveSubSamplingComboBox">
                <property name="font">
                 <font>
-                 <pointsize>14</pointsize>
+                 <pointsize>11</pointsize>
                 </font>
                </property>
               </widget>
@@ -3374,7 +3374,7 @@ Focus</string>
               <widget class="QLabel" name="label_56">
                <property name="font">
                 <font>
-                 <pointsize>14</pointsize>
+                 <pointsize>11</pointsize>
                 </font>
                </property>
                <property name="text">
@@ -3386,7 +3386,7 @@ Focus</string>
               <widget class="QComboBox" name="AcquisitionSubSamplingComboBox">
                <property name="font">
                 <font>
-                 <pointsize>14</pointsize>
+                 <pointsize>11</pointsize>
                 </font>
                </property>
                <property name="currentIndex">
@@ -3412,7 +3412,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
               <weight>50</weight>
               <italic>false</italic>
               <bold>false</bold>
@@ -3433,14 +3433,14 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
               <weight>50</weight>
               <italic>false</italic>
               <bold>false</bold>
              </font>
             </property>
             <property name="text">
-             <string>Run Lightsheet Switching  Mode</string>
+             <string>Run Lightsheet Switching Mode</string>
             </property>
            </widget>
            <widget class="QPushButton" name="ContrastWindowButton">
@@ -3454,7 +3454,7 @@ Focus</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>14</pointsize>
+              <pointsize>12</pointsize>
               <weight>50</weight>
               <italic>false</italic>
               <bold>false</bold>
