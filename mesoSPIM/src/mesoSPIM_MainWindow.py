@@ -338,7 +338,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.actionCascade_windows.triggered.connect(self.cascade_all_windows)
 
     def initialize_and_connect_widgets(self):
-      def initialize_and_connect_widgets(self):
         """ Connecting GUI widgets to their respective slots """
 
         ''' Movement tab '''
