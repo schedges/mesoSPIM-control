@@ -97,7 +97,7 @@ class mesoSPIM_Camera(QtCore.QObject):
                         'camera_display_acquisition_subsampling',
                         'camera_binning'):
                 exec('self.set_'+key+'(value)')
-            elif key == 'state':
+            if key == 'state':
                 if value == 'live':
                     logger.debug('Thread name during live: '+ (QtCore.QThread.currentThread().objectName()))
 
