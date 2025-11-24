@@ -100,7 +100,6 @@ class mesoSPIM_Camera(QtCore.QObject):
                 if value == 'live':
                     logger.debug('Thread name during live: '+ (QtCore.QThread.currentThread().objectName()))
 
-
     @QtCore.pyqtSlot()
     def stop(self):
         ''' Stops acquisition '''
@@ -116,7 +115,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.camera.set_exposure_time(time)
         self.camera_exposure_time = time
         self.state['camera_exposure_time'] = time
-        #self.sig_update_gui_from_state.emit()
 
     def set_camera_line_interval(self, time):
         '''
@@ -128,7 +126,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.camera.set_line_interval(time)
         self.camera_line_interval = time
         self.state['camera_line_interval'] = time
-        #self.sig_update_gui_from_state.emit()
 
     def set_camera_display_live_subsampling(self, factor):
         self.camera_display_live_subsampling = factor
@@ -187,8 +184,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         except Exception as e:
             logger.error(f'Camera: Image Series could not be closed: {e}')
 
-        #self.image_writer.end_acquisition(acq, acq_list)
-
         self.end_time = time.time()
         framerate = (self.cur_image + 1)/(self.end_time - self.start_time)
         logger.info(f'Camera: Framerate: {framerate:.2f}')
@@ -220,8 +215,7 @@ class mesoSPIM_Camera(QtCore.QObject):
             self.frame_queue_display.append(np.rot90(image)) # push the first image into the display queue
             self.sig_camera_frame.emit() # signal the GUI to update the display
             self.live_image_count += 1
-            #self.sig_camera_status.emit(str(self.live_image_count))
-
+            
     @QtCore.pyqtSlot()
     def end_live(self):
         self.camera.close_live_mode()
@@ -270,11 +264,7 @@ class mesoSPIM_GenericCamera(QtCore.QObject):
         pass
 
     def set_binning(self, binning_string):
-        self.x_binning = int(binning_string[0])
-        self.y_binning = int(binning_string[2])
-        self.x_pixels = int(self.x_pixels / self.x_binning)
-        self.y_pixels = int(self.y_pixels / self.y_binning)
-        self.state['camera_binning'] = str(self.x_binning)+'x'+str(self.y_binning)
+        pass
 
     def initialize_image_series(self):
         pass
@@ -448,225 +438,3 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
 
     def close_live_mode(self):
         self.hcam.stopAcquisition()
-
-
-class mesoSPIM_PhotometricsCamera(mesoSPIM_GenericCamera):
-    def __init__(self, parent):
-        super().__init__(parent)
-
-    def open_camera(self):
-        from pyvcam import pvc
-        from pyvcam import constants as const
-        from pyvcam.camera import Camera
-
-        self.const = const
-        self.pvc = pvc
-
-        pvc.init_pvcam()
-        self.pvcam = [cam for cam in Camera.detect_camera()][0]
-        self.pvcam.open()
-        self.pvcam.speed_table_index = self.cfg.camera_parameters['speed_table_index']
-        self.pvcam.exp_mode = self.cfg.camera_parameters['exp_mode']
-        self.pvcam.set_param(param_id = self.const.PARAM_READOUT_PORT, value = self.cfg.camera_parameters['readout_port'])
-        self.pvcam.set_param(self.const.PARAM_GAIN_INDEX, self.cfg.camera_parameters['gain_index'])
-        self.pvcam.exp_out_mode = self.cfg.camera_parameters['exp_out_mode']
-        self.pvcam.exp_res = 0 # 0 for ms
-
-        logger.info('Camera Vendor Name: '+str(self.pvcam.get_param(param_id = self.const.PARAM_VENDOR_NAME)))
-        logger.info('Camera Product Name: '+str(self.pvcam.get_param(param_id = self.const.PARAM_PRODUCT_NAME)))
-        logger.info('Camera Chip Name: '+str(self.pvcam.get_param(param_id = self.const.PARAM_CHIP_NAME)))
-        logger.info('Camera System Name: '+str(self.pvcam.get_param(param_id = self.const.PARAM_SYSTEM_NAME)))
-
-        # Exposure mode options: {'Internal Trigger': 1792, 'Edge Trigger': 2304, 'Trigger first': 2048}
-        # self.pvcam.set_param(param_id = self.const.PARAM_EXPOSURE_MODE, value = 2304)
-
-        # Exposure out mode options: {'First Row': 0, 'All Rows': 1, 'Any Row': 2, 'Rolling Shutter': 3, 'Line Output': 4}
-        # self.pvcam.set_param(param_id = self.const.PARAM_EXPOSE_OUT_MODE, value = 3)
-
-        ''' Setting ASLM parameters '''
-        # Scan mode options: {'Auto': 0, 'Line Delay': 1, 'Scan Width': 2}
-        self.pvcam.set_param(param_id = self.const.PARAM_SCAN_MODE, value = self.cfg.camera_parameters['scan_mode'])
-        # Scan direction options: {'Down': 0, 'Up': 1, 'Down/Up Alternate': 2}
-        self.pvcam.set_param(param_id = self.const.PARAM_SCAN_DIRECTION, value = self.cfg.camera_parameters['scan_direction'])
-        # 10.26 us x factor 
-        # factor = 6 equals 71.82 us
-        self.pvcam.set_param(param_id = self.const.PARAM_SCAN_LINE_DELAY, value = self.cfg.camera_parameters['scan_line_delay'])
-        
-        ''' Setting Binning parameters: '''
-        '''
-        self.binning_string = self.cfg.camera_parameters['binning'] # Should return a string in the form '2x4'
-        self.x_binning = int(self.binning_string[0])
-        self.y_binning = int(self.binning_string[2])
-        '''
-        self.pvcam.binning = (self.x_binning, self.y_binning)
-
-        #self.pvcam.set_param(param_id = self.const.PARAM_BINNING_PAR, value = self.y_binning)
-        #self.pvcam.set_param(param_id = self.const.PARAM_BINNING_SER, value = self.x_binning)
-
-        # print('Readout port: ', self.pvcam.readout_port)
-        
-        """ 
-        self.report_pvcam_parameter('PMODE',self.const.PARAM_PMODE)
-        self.report_pvcam_parameter('GAIN_INDEX',self.const.PARAM_GAIN_INDEX)
-        self.report_pvcam_parameter('GAIN_NAME',self.const.PARAM_GAIN_NAME)
-        self.report_pvcam_parameter('READOUT PORT',self.const.PARAM_READOUT_PORT)
-        self.report_pvcam_parameter('READOUT TIME',self.const.PARAM_READOUT_TIME)
-        self.report_pvcam_parameter('IMAGE FORMAT', self.const.PARAM_IMAGE_FORMAT)
-        self.report_pvcam_parameter('SPEED TABLE INDEX', self.const.PARAM_SPDTAB_INDEX)
-        self.report_pvcam_parameter('BIT DEPTH', self.const.PARAM_BIT_DEPTH)
-
-        
-        logger.info('P Mode: '+str(self.pvcam.get_param(param_id = self.const.PARAM_PMODE)))
-        logger.info('P Mode options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_PMODE)))
-        logger.info('Bit depth: '+str(self.pvcam.get_param(param_id = self.const.PARAM_BIT_DEPTH)))
-        logger.info('Exposure time resolution: '+str(self.pvcam.get_param(param_id = self.const.PARAM_EXP_RES)))
-        logger.info('Exposure time resolution options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_EXP_RES)))
-        logger.info('Exposure mode: '+str(self.pvcam.get_param(param_id = self.const.PARAM_EXPOSURE_MODE)))
-        logger.info('Exposure mode options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_EXPOSURE_MODE)))
-        logger.info('Exposure out mode: '+str(self.pvcam.get_param(param_id = self.const.PARAM_EXPOSE_OUT_MODE)))
-        logger.info('Exposure out mode options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_EXPOSE_OUT_MODE)))
-        logger.info('Scan mode: '+str(self.pvcam.get_param(param_id = self.const.PARAM_SCAN_MODE)))
-        logger.info('Scan mode options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_SCAN_MODE)))
-        logger.info('Scan direction: '+str(self.pvcam.get_param(param_id = self.const.PARAM_SCAN_DIRECTION)))
-        logger.info('Scan direction options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_SCAN_DIRECTION)))
-        logger.info('Line delay: '+str(self.pvcam.get_param(param_id = self.const.PARAM_SCAN_LINE_DELAY)))
-        logger.info('Line time: '+str(self.pvcam.get_param(param_id = self.const.PARAM_SCAN_LINE_TIME)))
-        logger.info('Binning SER: '+str(self.pvcam.get_param(param_id = self.const.PARAM_BINNING_SER)))
-        logger.info('Binning SER options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_BINNING_SER)))
-        logger.info('Binning PAR: '+str(self.pvcam.get_param(param_id = self.const.PARAM_BINNING_PAR)))
-        logger.info('Binning PAR options: '+str(self.pvcam.read_enum(param_id = self.const.PARAM_BINNING_PAR)))
-        """
-
-    def report_pvcam_parameter(self, description, parameter):
-        try:
-            logger.info(description+' '+str(self.pvcam.get_param(param_id = parameter)))
-            print(description+' '+str(self.pvcam.get_param(param_id = parameter)))
-        except:
-            pass
-        
-        try:
-            logger.info(description+' '+str(self.pvcam.read_enum(param_id = parameter)))
-            print(description+' '+str(str(self.pvcam.read_enum(param_id = parameter))))
-        except:
-            pass
-        
-    def close_camera(self):
-        self.pvcam.close()
-        self.pvc.uninit_pvcam()
-
-    def set_exposure_time(self, time):
-        print('Exp Time :', time)
-        exp_time_ms = int(self.camera_exposure_time * 1000)
-        self.pvcam.exp_time = exp_time_ms
-        self.camera_exposure_time = time
-
-    def set_line_interval(self, time):
-        print('Setting line interval is not implemented, set the interval in the config file')
-
-    def set_binning(self, binningstring):
-        self.x_binning = int(binningstring[0])
-        self.y_binning = int(binningstring[2])
-        self.x_pixels = int(self.x_pixels / self.x_binning)
-        self.y_pixels = int(self.y_pixels / self.y_binning)
-        self.pvcam.binning = (self.x_binning, self.y_binning)
-        self.state['camera_binning'] = str(self.x_binning)+'x'+str(self.y_binning)
-        
-    def get_image(self):
-        frame , _ , _ = self.pvcam.poll_frame()
-        return frame['pixel_data']
-    
-    def initialize_image_series(self):
-        ''' The Photometrics cameras expect integer exposure times, otherwise they default to the minimum value '''
-        exp_time_ms = int(self.camera_exposure_time * 1000)
-        self.pvcam.exp_time = exp_time_ms
-        self.pvcam.start_live()
-
-    def get_images_in_series(self):
-        # print('Exp Time in series:', self.pvcam.exp_time)
-        frame , _ , _ = self.pvcam.poll_frame()
-        return [frame['pixel_data']]
-    
-    def close_image_series(self):
-        logger.debug("Calling self.pvcam.finish()")
-        self.pvcam.finish()
-
-    def initialize_live_mode(self):
-        ''' The Photometrics cameras expect integer exposure times, otherwise they default to the minimum value '''
-        exp_time_ms = int(self.camera_exposure_time * 1000)
-        self.pvcam.exp_time = exp_time_ms
-        self.pvcam.start_live()
-        logger.info('Initializing live mode with exp time: '+str(exp_time_ms))
-    
-    def get_live_image(self):
-        # print('Exp Time in live:', self.pvcam.exp_time)
-        frame , _ , _ = self.pvcam.poll_frame()
-        return [frame['pixel_data']]
-    
-    def close_live_mode(self):
-        # print('Live mode finished')
-        self.pvcam.finish()
-        
-
-class mesoSPIM_PCOCamera(mesoSPIM_GenericCamera):
-    def __init__(self, parent):
-        super().__init__(parent)
-        logger.info('PCO Cam initialized')
-    
-    def open_camera(self):
-        import pco
-        self.cam = pco.Camera() # no logging 
-        # self.cam = pco.Camera(debuglevel='verbose', timestamp='on')
-
-        self.cam.sdk.set_cmos_line_timing('on', self.cfg.camera_parameters['line_interval']) # 75 us delay
-        self.cam.set_exposure_time(self.cfg.camera_parameters['exp_time'])
-        # self.cam.sdk.set_cmos_line_exposure_delay(80, 0) # 266 lines = 20 ms / 75 us
-        self.cam.configuration = {'trigger' : self.cfg.camera_parameters['trigger']}
-
-        line_time = self.cam.sdk.get_cmos_line_timing()['line time']
-        lines_exposure = self.cam.sdk.get_cmos_line_exposure_delay()['lines exposure']
-        t = self.cam.get_exposure_time()
-        #print('Exposure Time: {:9.6f} s'.format(t))
-        #print('Line Time: {:9.6f} s'.format(line_time))
-        #print('Number of Lines: {:d}'.format(lines_exposure))
-
-        self.cam.record(number_of_images=4, mode='fifo')
-
-    def close_camera(self):
-        self.cam.stop()
-        self.cam.close()
-
-    def set_exposure_time(self, time):
-        self.cam.set_exposure_time(time)
-        self.camera_exposure_time = time
-        
-    def set_line_interval(self, time):
-        print('Setting line interval is not implemented, set the interval in the config file')
-        
-    def set_binning(self, binningstring):
-        pass
-                
-    def get_image(self):
-        image, meta = self.cam.image(image_number=-1)
-        return image
-        
-    def initialize_image_series(self):
-        pass
-    
-    def get_images_in_series(self):
-        image, meta = self.cam.image(image_number=-1)
-        return [image]
-
-    def close_image_series(self):
-        pass
-
-    def initialize_live_mode(self):
-        pass
-
-    def get_live_image(self):
-        image, meta = self.cam.image(image_number=-1)
-        return [image]
-
-    def close_live_mode(self):
-        pass
-
-    
