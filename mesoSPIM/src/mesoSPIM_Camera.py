@@ -36,7 +36,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.frame_queue_display = frame_queue_display
 
         self.state = self.parent.state # a mesoSPIM_StateSingleton() object
-        #self.image_writer = mesoSPIM_ImageWriter(self)
         self.stopflag = False
 
         self.x_pixels = self.cfg.camera_parameters['x_pixels']
@@ -66,8 +65,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.parent.sig_state_request.connect(self.state_request_handler) # from mesoSPIM_Core() to mesoSPIM_Camera()
         self.parent.sig_prepare_image_series.connect(self.prepare_image_series, type=QtCore.Qt.BlockingQueuedConnection)
         self.parent.sig_add_images_to_image_series.connect(self.add_images_to_series, type=QtCore.Qt.QueuedConnection)
-        # self.parent.sig_add_images_to_image_series_and_wait_until_done.connect(self.add_images_to_series, type=QtCore.Qt.BlockingQueuedConnection)
-        #self.parent.sig_write_metadata.connect(self.image_writer.write_metadata, type=QtCore.Qt.BlockingQueuedConnection)
 
         self.parent.sig_prepare_live.connect(self.prepare_live, type=QtCore.Qt.BlockingQueuedConnection)
         self.parent.sig_get_live_image.connect(self.get_live_image)
@@ -75,12 +72,8 @@ class mesoSPIM_Camera(QtCore.QObject):
         self.parent.sig_end_live.connect(self.end_live, type=QtCore.Qt.BlockingQueuedConnection)
 
         ''' Set up the actual camera '''
-        if self.cfg.camera == 'HamamatsuOrca':
-            self.camera = mesoSPIM_HamamatsuCamera(self)
-        elif self.cfg.camera == 'Photometrics':
-            self.camera = mesoSPIM_PhotometricsCamera(self)
-        elif self.cfg.camera == 'PCO':
-            self.camera = mesoSPIM_PCOCamera(self)
+        if self.cfg.camera == 'HamamatsuOrcaQuest2':
+            self.camera = mesoSPIM_HamamatsuOrcaQuest2(self)
         elif self.cfg.camera == 'DemoCamera':
             self.camera = mesoSPIM_DemoCamera(self)
 
@@ -350,7 +343,7 @@ class mesoSPIM_DemoCamera(mesoSPIM_GenericCamera):
         return [self._create_random_image()]
 
 
-class mesoSPIM_HamamatsuCamera(mesoSPIM_GenericCamera):
+class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
     def __init__(self, parent):
         super().__init__(parent)
 
