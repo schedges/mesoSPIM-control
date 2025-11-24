@@ -92,17 +92,14 @@ class mesoSPIM_Camera(QtCore.QObject):
         for key, value in zip(dict.keys(), dict.values()):
             if key in ('camera_exposure_time',
                         'camera_line_interval',
-                        'state',
                         'camera_display_live_subsampling',
                         'camera_display_acquisition_subsampling',
                         'camera_binning'):
                 exec('self.set_'+key+'(value)')
-            if key == 'state':
+            elif key == 'state':
                 if value == 'live':
                     logger.debug('Thread name during live: '+ (QtCore.QThread.currentThread().objectName()))
 
-    def set_state(self, value):
-        pass
 
     @QtCore.pyqtSlot()
     def stop(self):
