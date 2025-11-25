@@ -289,7 +289,6 @@ class mesoSPIM_GenericCamera(QtCore.QObject):
     def close_live_mode(self):
         pass
 
-
 class mesoSPIM_DemoCamera(mesoSPIM_GenericCamera):
     def __init__(self, parent):
         super().__init__(parent)
@@ -339,7 +338,6 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
         self.camera_id = self.cfg.camera_parameters['camera_id']
 
         from .devices.cameras.hamamatsu import hamamatsu_camera as cam
-        # if self.cfg.camera == 'HamamatsuOrca':
         self.hcam = cam.HamamatsuCameraMR(camera_id=self.camera_id)
         ''' Debbuging information '''
         logger.info(f'Initialized Hamamatsu camera model: {self.hcam.getModelInfo(self.camera_id)}')
@@ -354,10 +352,6 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
             self.hcam.setPropertyValue("readout_speed", self.cfg.camera_parameters['readout_speed'])
         else:
             logger.warning('No readout speed specified in the configuration file. Using default value.')
-        if 'high_dynamic_range_mode' in self.cfg.camera_parameters.keys():
-            self.hcam.setPropertyValue("high_dynamic_range_mode", self.cfg.camera_parameters['high_dynamic_range_mode'])
-        else:
-            logger.warning('No "high_dynamic_range_mode" specified in the configuration file. Using default value.')
 
         self.hcam.setPropertyValue("trigger_active", self.cfg.camera_parameters['trigger_active'])
         self.hcam.setPropertyValue("trigger_mode", self.cfg.camera_parameters['trigger_mode']) # it is unclear if this is the external lightsheeet mode - how to check this?
