@@ -353,6 +353,16 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
         else:
             logger.warning('No readout speed specified in the configuration file. Using default value.')
 
+        if 'sensor_cooler' in self.cfg.camera_parameters.keys():
+            if self.cfg.camera_parameters["sensor_cooler"] == 2:
+                print("TODO: propagate warning message to core to remind user to have air or water cooling on!")
+            elif self.cfg.camera_parameters["sensor_cooler"] == 4:
+                print("TODO: propagate warning message to core to remind user to have water cooling on!")
+            self.hcam.setPropertyValue("sensor_cooler",self.cfg.camera_parameters["sensor_cooler"])
+        else:
+            logger.warning('No cooling mode specified in the configuration file. Using default value.')
+            self.hcam.setPropertyValue("sensor_cooler",1)
+
         self.hcam.setPropertyValue("trigger_active", self.cfg.camera_parameters['trigger_active'])
         self.hcam.setPropertyValue("trigger_mode", self.cfg.camera_parameters['trigger_mode']) # it is unclear if this is the external lightsheeet mode - how to check this?
         self.hcam.setPropertyValue("trigger_polarity", self.cfg.camera_parameters['trigger_polarity']) # positive pulse
