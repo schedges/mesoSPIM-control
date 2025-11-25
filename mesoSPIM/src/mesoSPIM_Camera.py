@@ -333,6 +333,10 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
     def __init__(self, parent):
         super().__init__(parent)
 
+    def display_warning(self, string):
+        from PyQt5 import QtWidgets
+        warning = QtWidgets.QMessageBox.warning(None,'mesoSPIM Warning', string, QtWidgets.QMessageBox.Ok)
+
     def open_camera(self):
         ''' Hamamatsu-specific code '''
         self.camera_id = self.cfg.camera_parameters['camera_id']
@@ -355,13 +359,16 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
 
         if 'sensor_cooler' in self.cfg.camera_parameters.keys():
             if self.cfg.camera_parameters["sensor_cooler"] == 2:
-                print("TODO: propagate warning message to core to remind user to have air or water cooling on!")
+                self.display_warning("Camera cooling set to ON — Ensure air or water cooling is turned on!")
             elif self.cfg.camera_parameters["sensor_cooler"] == 4:
-                print("TODO: propagate warning message to core to remind user to have water cooling on!")
+                self.display_warning("Camera cooling set to MAX — Ensure water cooling is turned on!")
+            else:
+                self.display_warning("Camera cooling set to OFF - performance will be poor")
             self.hcam.setPropertyValue("sensor_cooler",self.cfg.camera_parameters["sensor_cooler"])
         else:
             logger.warning('No cooling mode specified in the configuration file. Using default value.')
             self.hcam.setPropertyValue("sensor_cooler",1)
+            self.parent.sig_camera_warning.emit("Camera cooling set to OFF - performance will be poor")
 
         self.hcam.setPropertyValue("trigger_active", self.cfg.camera_parameters['trigger_active'])
         self.hcam.setPropertyValue("trigger_mode", self.cfg.camera_parameters['trigger_mode']) # it is unclear if this is the external lightsheeet mode - how to check this?
