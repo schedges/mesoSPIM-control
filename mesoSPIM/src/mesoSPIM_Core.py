@@ -883,7 +883,6 @@ class mesoSPIM_Core(QtCore.QObject):
         self.state['current_framerate'] = acq.get_image_count() / (self.image_acq_end_time - self.image_acq_start_time)
         self.append_timing_info_to_metadata(acq)
         self.acquisition_count += 1
-        self.sig_finished.emit()
 
     @QtCore.pyqtSlot(str)
     def execute_script(self, script):
