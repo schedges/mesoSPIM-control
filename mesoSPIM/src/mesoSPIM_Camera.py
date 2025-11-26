@@ -238,13 +238,19 @@ class mesoSPIM_Camera(QtCore.QObject):
     def _temperature_tick(self):
         if not self._poll_temperature:
             return
-        
+        self.single_temperature_read()
+        QtCore.QTimer.singleShot(2000, self._temperature_tick)
+    
+    @QtCore.pyqtSlot()
+    def single_temperature_read(self):
         if hasattr(self.camera, "read_temperature"):
-            temp = self.camera.read_temperature()
-            if temp is not None:
-                self.sig_temperature.emit(temp)
+            try:
+                temp = self.camera.read_temperature()
+                if temp is not None:
+                    self.sig_temperature.emit(temp)
+            except Exception as e:
+                self.sig_status_message.emit(f"Temperature read failed: {e}")
 
-            QtCore.QTimer.singleShot(2000, self._temperature_tick)
 
 class mesoSPIM_GenericCamera(QtCore.QObject):
     ''' Generic mesoSPIM camera class meant for subclassing.'''

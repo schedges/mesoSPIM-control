@@ -565,6 +565,9 @@ class mesoSPIM_Core(QtCore.QObject):
 
             QtWidgets.QApplication.processEvents()
 
+            #Read temp 
+            self.camera_worker.single_temperature_read()
+
         self.laserenabler.disable_all()
         self.close_shutters()
         self.sig_end_live.emit()
@@ -673,6 +676,7 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.prepare_acquisition(acq, acq_list)
                 self.run_acquisition(acq, acq_list)
                 self.close_acquisition(acq, acq_list)
+                self.camera_worker.single_temperature_read()
 
     def close_acquisition_list(self, acq_list):
         self.sig_status_message.emit('Closing Acquisition List')

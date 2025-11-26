@@ -848,7 +848,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(float)
     def update_temperature(self, temp):
-        print(temp)
         try:
             self.temperatureBox.setText(f"Temp: {temp:.1f} °C")
         except Exception:
