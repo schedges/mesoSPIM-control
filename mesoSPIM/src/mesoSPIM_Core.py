@@ -111,6 +111,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.camera_worker.sig_update_gui_from_state.connect(self.sig_update_gui_from_state.emit)
         self.camera_worker.sig_status_message.connect(self.send_status_message_to_gui)
         self.camera_worker.sig_camera_frame.connect(self.parent.camera_window.update_image_from_deque)
+        self.camera_worker.sig_temperature.connect(self.parent.update_temperature)
         self.sig_end_image_series.connect(self.camera_worker.end_image_series, type=QtCore.Qt.BlockingQueuedConnection)
         self.sig_stop_aquisition.connect(self.camera_worker.stop, type=QtCore.Qt.QueuedConnection)
         
@@ -265,7 +266,7 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.sig_state_request.emit({key : value})
 
     def set_state(self, state):
-        self.camera_worker.camera.stop_temperature_polling()
+        self.camera_worker.stop_temperature_polling()
         
         if state == 'live':
             self.state['state'] = 'live'
@@ -300,7 +301,7 @@ class mesoSPIM_Core(QtCore.QObject):
             self.state['state'] = 'idle'
             self.sig_state_request.emit({'state':'idle'})
             self.stop()
-            self.camera_worker.camera.start_temperature_polling()
+            self.camera_worker.start_temperature_polling()
 
         elif state == 'lightsheet_alignment_mode':
             self.state['state'] = 'lightsheet_alignment_mode'

@@ -845,3 +845,11 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.acquisition_manager_window.move(window_pos[0] + 200, window_pos[1] + 200)
         if self.webcam_window:
             self.webcam_window.move(window_pos[0] + 300, window_pos[1] + 300)
+
+    @QtCore.pyqtSlot(float)
+    def update_temperature(self, temp):
+        print(temp)
+        try:
+            self.temperatureBox.setText(f"Temp: {temp:.1f} °C")
+        except Exception:
+            pass
