@@ -113,8 +113,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.camera_worker.sig_camera_frame.connect(self.parent.camera_window.update_image_from_deque)
         self.sig_end_image_series.connect(self.camera_worker.end_image_series, type=QtCore.Qt.BlockingQueuedConnection)
         self.sig_stop_aquisition.connect(self.camera_worker.stop, type=QtCore.Qt.QueuedConnection)
-
-        #Here 11/13/2025
+        
         self.image_writer_thread = QtCore.QThread()
         self.image_writer = mesoSPIM_ImageWriter(self, self.frame_queue)
         self.image_writer.moveToThread(self.image_writer_thread)
@@ -192,7 +191,7 @@ class mesoSPIM_Core(QtCore.QObject):
             self.TTL_mode_enabled_in_cfg = False
 
         self.metadata_file = None
-        self.state['state'] = 'idle'
+        self.set_state("idle")
         self.time_counter = 0
 
     def __del__(self):
@@ -266,6 +265,8 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.sig_state_request.emit({key : value})
 
     def set_state(self, state):
+        self.camera_worker.camera.stop_temperature_polling()
+        
         if state == 'live':
             self.state['state'] = 'live'
             self.sig_state_request.emit({'state':'live'})
@@ -296,8 +297,10 @@ class mesoSPIM_Core(QtCore.QObject):
             self.preview_acquisition(z_update=False)
 
         elif state == 'idle':
+            self.state['state'] = 'idle'
             self.sig_state_request.emit({'state':'idle'})
             self.stop()
+            self.camera_worker.camera.start_temperature_polling()
 
         elif state == 'lightsheet_alignment_mode':
             self.state['state'] = 'lightsheet_alignment_mode'
@@ -313,7 +316,6 @@ class mesoSPIM_Core(QtCore.QObject):
         self.stopflag = True # This stopflag is a bit risky, needs to be updated to a more robust solution
         self.sig_stop_aquisition.emit() # send STOP signal to both Camera and ImageWriter threads
         self.sig_polling_stage_position_start.emit()
-        self.state['state'] = 'idle'
         self.sig_update_gui_from_state.emit()
         self.sig_finished.emit()
         self.frame_queue.clear() # clear the frame queue
@@ -681,7 +683,6 @@ class mesoSPIM_Core(QtCore.QObject):
             if current_rotation > target_rotation+0.1 or current_rotation < target_rotation-0.1:
                 self.move_absolute({'theta_abs':target_rotation}, wait_until_done=True)
 
-            self.state['state'] = 'idle'
             self.move_absolute(acq_list.get_startpoint(), wait_until_done=True)
             self.sig_polling_stage_position_start.emit()  # resume asking stages about their position
 
@@ -747,7 +748,7 @@ class mesoSPIM_Core(QtCore.QObject):
 
         self.sig_status_message.emit('Ready for preview...')
         self.sig_update_gui_from_state.emit()
-        self.state['state'] = 'idle'
+        self.sig_finished.emit()
 
     def prepare_acquisition(self, acq, acq_list):
         ''' Housekeeping: Prepare the acquisition  '''
@@ -881,6 +882,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.state['current_framerate'] = acq.get_image_count() / (self.image_acq_end_time - self.image_acq_start_time)
         self.append_timing_info_to_metadata(acq)
         self.acquisition_count += 1
+        self.sig_finished.emit()
 
     @QtCore.pyqtSlot(str)
     def execute_script(self, script):
@@ -890,7 +892,6 @@ class mesoSPIM_Core(QtCore.QObject):
         except:
             traceback.print_exc()
         self.sig_finished.emit()
-        self.state['state']='idle'
         self.sig_update_gui_from_state.emit()
 
     def lightsheet_alignment_mode(self):

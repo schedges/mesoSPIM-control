@@ -56,6 +56,17 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         loadUi(self.package_directory + '/gui/mesoSPIM_MainWindow.ui', self)
         self.setWindowTitle(title)
 
+        # --- Add temperature display to the right side of the status bar ---
+        temp_box = QtWidgets.QLineEdit()
+        temp_box.setObjectName("temperatureBox")
+        temp_box.setFixedWidth(120)
+        temp_box.setReadOnly(True)
+        temp_box.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        temp_box.setStyleSheet("background: transparent; border: none; color: white;")
+        temp_box.setPlaceholderText("Temp: -- °C")
+        self.statusBar().addPermanentWidget(temp_box)
+        self.temperatureBox = temp_box
+
         self.camera_window = mesoSPIM_CameraWindow(self)
         self.camera_window.show()
 
@@ -429,7 +440,6 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.LightsheetSwitchingModeButton.clicked.connect(self.run_lightsheet_alignment_mode)
         self.VisualModeButton.clicked.connect(self.run_visual_mode)
 
-
         ''' Persistent lower half of the main window '''
         self.LiveButton.clicked.connect(self.run_live)
         self.SnapButton.clicked.connect(self.run_snap)
@@ -718,6 +728,8 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         self.enable_mode_control_buttons(True)
         self.enable_gui(True)
         self.set_progressbars_to_standard()
+        if self.core.state['state'] != 'idle':
+            self.core.set_state('idle')
 
     def set_progressbars_to_busy(self):
         '''If min and max of a progress bar are 0, it shows a "busy" indicator'''

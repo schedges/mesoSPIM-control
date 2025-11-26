@@ -26,6 +26,7 @@ class mesoSPIM_Camera(QtCore.QObject):
     sig_finished = QtCore.pyqtSignal()
     sig_update_gui_from_state = QtCore.pyqtSignal()
     sig_status_message = QtCore.pyqtSignal(str)
+    sig_temperature = QtCore.pyqtSignal(float)
 
     def __init__(self, parent, frame_queue, frame_queue_display):
         super().__init__()
@@ -223,9 +224,10 @@ class mesoSPIM_Camera(QtCore.QObject):
         framerate = (self.live_image_count + 1)/(self.end_time - self.start_time)
         logger.info(f'Camera: Finished Live Mode: Framerate: {framerate:.2f}')
 
-
 class mesoSPIM_GenericCamera(QtCore.QObject):
     ''' Generic mesoSPIM camera class meant for subclassing.'''
+    sig_status_message = QtCore.pyqtSignal(str)
+    sig_temperature = QtCore.pyqtSignal(float)
 
     def __init__(self, parent):
         super().__init__()
@@ -289,6 +291,16 @@ class mesoSPIM_GenericCamera(QtCore.QObject):
     def close_live_mode(self):
         pass
 
+    
+    def start_temperature_polling(self):
+        pass
+
+    def stop_temperature_polling(self):
+        pass
+    
+    def _temperature_tick(self):
+        pass
+
 class mesoSPIM_DemoCamera(mesoSPIM_GenericCamera):
     def __init__(self, parent):
         super().__init__(parent)
@@ -343,6 +355,7 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
 
         from .devices.cameras.hamamatsu import hamamatsu_camera as cam
         self.hcam = cam.HamamatsuCameraMR(camera_id=self.camera_id)
+
         ''' Debbuging information '''
         logger.info(f'Initialized Hamamatsu camera model: {self.hcam.getModelInfo(self.camera_id)}')
 
@@ -449,3 +462,34 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
 
     def close_live_mode(self):
         self.hcam.stopAcquisition()
+
+    def start_temperature_polling(self):
+        """
+        Begin periodic temperature polling on the camera worker thread.
+        """
+        self._poll_temperature = True
+        QtCore.QTimer.singleShot(0, self._temperature_tick)
+            
+    def stop_temperature_polling(self):
+        """
+        Stop periodic temperature polling.
+        """
+        self._poll_temperature = False
+    
+    def _temperature_tick(self):
+        """
+        One temperature polling cycle.
+        Runs in the camera thread. Non-blocking.
+        """
+        if not getattr(self, "_poll_temperature", False):
+            return
+
+        try:
+            temp, _ = self.hcam.getPropertyValue('sensor_temperature')
+            print(f'temp is {temp}')
+            self.sig_temperature.emit(temp)
+        except Exception as e:
+            self.sig_status_message.emit(f"Temperature read failed: {e}")
+
+        # Schedule next tick
+        QtCore.QTimer.singleShot(2000, self._temperature_tick)
