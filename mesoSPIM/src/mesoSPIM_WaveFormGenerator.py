@@ -531,13 +531,13 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
 
         '''Wait until everything is done - this is effectively a sleep function.'''
         if self.ao_cards == 2:
-            self.galvo_etl_task.wait_until_done()
-            self.laser_task.wait_until_done()
+            self.galvo_etl_task.wait_until_done(300)
+            self.laser_task.wait_until_done(300)
         else:
-            self.galvo_etl_laser_task.wait_until_done()
-        self.camera_trigger_task.wait_until_done()
+            self.galvo_etl_laser_task.wait_until_done(300)
+        self.camera_trigger_task.wait_until_done(300)
         if self.cfg.stage_parameters['stage_type'] in {'TigerASI'}:
-            self.stage_trigger_task.wait_until_done()
+            self.stage_trigger_task.wait_until_done(300)
 
     def stop_tasks(self):
         """Stops the tasks for triggering, analog and counter outputs"""
