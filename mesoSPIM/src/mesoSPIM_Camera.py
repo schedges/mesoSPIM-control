@@ -27,6 +27,7 @@ class mesoSPIM_Camera(QtCore.QObject):
     sig_update_gui_from_state = QtCore.pyqtSignal()
     sig_status_message = QtCore.pyqtSignal(str)
     sig_temperature = QtCore.pyqtSignal(float)
+    sig_overheat_stop = QtCore.pyqtSignal()
 
     def __init__(self, parent, frame_queue, frame_queue_display):
         super().__init__()
@@ -248,8 +249,17 @@ class mesoSPIM_Camera(QtCore.QObject):
                 temp = self.camera.read_temperature()
                 if temp is not None:
                     self.sig_temperature.emit(temp)
+                
+                if temp > 40:
+                    self.sig_status_message.emit("Camera above 40 C, stopping acquisiton!")
+                    print(f"OVERHEAT! Camera temp is {temp}")
+                    self.sig_overheat_stop.emit()
             except Exception as e:
                 self.sig_status_message.emit(f"Temperature read failed: {e}")
+    
+    def display_warning(self, string):
+        from PyQt5 import QtWidgets
+        warning = QtWidgets.QMessageBox.warning(None,'mesoSPIM Warning', string, QtWidgets.QMessageBox.Ok)
 
 
 class mesoSPIM_GenericCamera(QtCore.QObject):
@@ -364,10 +374,6 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
     def __init__(self, parent):
         super().__init__(parent)
 
-    def display_warning(self, string):
-        from PyQt5 import QtWidgets
-        warning = QtWidgets.QMessageBox.warning(None,'mesoSPIM Warning', string, QtWidgets.QMessageBox.Ok)
-
     def open_camera(self):
         ''' Hamamatsu-specific code '''
         self.camera_id = self.cfg.camera_parameters['camera_id']
@@ -391,16 +397,16 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
 
         if 'sensor_cooler' in self.cfg.camera_parameters.keys():
             if self.cfg.camera_parameters["sensor_cooler"] == 2:
-                self.display_warning("Camera cooling set to ON — Ensure air or water cooling is turned on!")
+                self.parent.display_warning("Camera cooling set to ON — Ensure air or water cooling is turned on!")
             elif self.cfg.camera_parameters["sensor_cooler"] == 4:
-                self.display_warning("Camera cooling set to MAX — Ensure water cooling is turned on!")
+                self.parent.display_warning("Camera cooling set to MAX — Ensure water cooling is turned on!")
             else:
-                self.display_warning("Camera cooling set to OFF - performance will be poor")
+                self.parent.display_warning("Camera cooling set to OFF - performance will be poor")
             self.hcam.setPropertyValue("sensor_cooler",self.cfg.camera_parameters["sensor_cooler"])
         else:
             logger.warning('No cooling mode specified in the configuration file. Using default value.')
             self.hcam.setPropertyValue("sensor_cooler",1)
-            self.parent.sig_camera_warning.emit("Camera cooling set to OFF - performance will be poor")
+            self.parent.display_warning("Camera cooling set to OFF - performance will be poor")
 
         self.hcam.setPropertyValue("trigger_active", self.cfg.camera_parameters['trigger_active'])
         self.hcam.setPropertyValue("trigger_mode", self.cfg.camera_parameters['trigger_mode']) # it is unclear if this is the external lightsheeet mode - how to check this?

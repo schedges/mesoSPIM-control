@@ -112,6 +112,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.camera_worker.sig_status_message.connect(self.send_status_message_to_gui)
         self.camera_worker.sig_camera_frame.connect(self.parent.camera_window.update_image_from_deque)
         self.camera_worker.sig_temperature.connect(self.parent.update_temperature)
+        self.camera_worker.sig_overheat_stop.connect(self.stop)
         self.sig_end_image_series.connect(self.camera_worker.end_image_series, type=QtCore.Qt.BlockingQueuedConnection)
         self.sig_stop_aquisition.connect(self.camera_worker.stop, type=QtCore.Qt.QueuedConnection)
         

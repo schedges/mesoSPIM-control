@@ -59,7 +59,7 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
         # --- Add temperature display to the right side of the status bar ---
         temp_box = QtWidgets.QLineEdit()
         temp_box.setObjectName("temperatureBox")
-        temp_box.setFixedWidth(120)
+        temp_box.setFixedWidth(150)
         temp_box.setReadOnly(True)
         temp_box.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         temp_box.setStyleSheet("background: transparent; border: none; color: white;")
