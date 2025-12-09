@@ -126,7 +126,6 @@ class mesoSPIM_AcquisitionManagerWindow(QtWidgets.QWidget):
         self.ImageProcessingWizardButton.clicked.connect(self.run_image_processing_wizard)
 
         self.DeleteAllButton.clicked.connect(self.delete_all_rows)
-        # self.SetRotationPointButton.clicked.connect(lambda bool: self.set_rotation_point() if bool is True else self.delete_rotation_point())
         self.SetFoldersButton.clicked.connect(self.set_folder_names)
 
         font = QtGui.QFont()
@@ -289,7 +288,11 @@ class mesoSPIM_AcquisitionManagerWindow(QtWidgets.QWidget):
 
         '''
         for key in self.delegate_dict :
-            column_index = self.model._table[0].keys().index(key)
+            try:
+                column_index = self.model._table[0].keys().index(key)
+            except ValueError:
+                continue   # key not present in the model; skip this delegate
+            
             ''' As some of the delegates expect options, a hack using exec was used: '''
             string_to_execute = 'self.table.setItemDelegateForColumn(column_index,'+self.delegate_dict[key]+')'
             delegate_object = exec(self.delegate_dict[key])
