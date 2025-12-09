@@ -1,45 +1,35 @@
-Welcome to the documentation of the mesoSPIM software!
-======================================================
+.. mesoSPIM-control documentation master file
+
+Welcome to the mesoSPIM-control documentation
+=============================================
+
+.. image:: _static/mesoSPIM-logo.png
+   :alt: mesoSPIM logo
+   :align: right
+   :width: 200px
+
+`mesoSPIM-control <https://github.com/mesoSPIM/mesoSPIM-control>`_ is
+Python/PyQt-based acquisition software for mesoSPIM light-sheet microscopes.
+It controls hardware, manages acquisition protocols, and provides a
+user-friendly GUI for complex multichannel, multiview, and tiling acquisitions.
+
+.. note::
+
+   The documentation is currently under active development (Dec 2025).
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   share/overview.rst
-   share/acquisitions.rst
+   getting_started
+   api/modules
+   contributing
 
-Development notes
------------------
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-   share/development/development_notes.rst
-   share/mesoSPIM_State.rst
-   share/mesoSPIM_Core.rst
-
-Modules
--------
-.. toctree::
-   :maxdepth: 1
-   :caption: Contents:
-
-   share/devices/devices.rst
-
-Utility modules
----------------
-.. toctree::
-   :maxdepth: 1
-   :caption: Contents:
-
-   share/acquisitions.rst
-   share/models.rst
-   share/delegates.rst
-   share/widgets.rst
 
 Indices and tables
-==================
+------------------
 
-* :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
