@@ -15,7 +15,6 @@ import npy2bdv
 from .utils.acquisitions import AcquisitionList, Acquisition
 from .utils.utility_functions import write_line, gb_size_of_array_shape, replace_with_underscores, log_cpu_core
 
-
 class mesoSPIM_ImageWriter(QtCore.QObject):
     def __init__(self, parent, frame_queue):
         '''Image and metadata writer class. Parent is mesoSPIM_Camera() object'''
@@ -282,15 +281,11 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             write_line(file, 'ETL CFG File', self.state['ETL_cfg_file'])
             write_line(file, 'etl_l_offset', self.state['etl_l_offset'])
             write_line(file, 'etl_l_amplitude', self.state['etl_l_amplitude'])
-            write_line(file, 'etl_r_offset', self.state['etl_r_offset'])
-            write_line(file, 'etl_r_amplitude', self.state['etl_r_amplitude'])
             write_line(file)
             write_line(file, 'GALVO PARAMETERS')
             write_line(file, 'galvo_l_frequency', self.state['galvo_l_frequency'])
             write_line(file, 'galvo_l_amplitude', self.state['galvo_l_amplitude'])
             write_line(file, 'galvo_l_offset', self.state['galvo_l_offset'])
-            #write_line(file, 'galvo_r_amplitude', self.state['galvo_r_amplitude'])
-            write_line(file, 'galvo_r_offset', self.state['galvo_r_offset'])
             write_line(file)
             write_line(file, 'CAMERA PARAMETERS')
             write_line(file, 'camera_type', self.cfg.camera)
@@ -316,9 +311,6 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
 
         write_line(self.metadata_file, 'Metadata for file', path)
         write_line(self.metadata_file)
-        # write_line(file, 'COMMENTS')
-        # write_line(file, 'Comment: ', acq(['comment']))
-        # write_line(file)
         write_line(self.metadata_file, 'CFG')
         write_line(self.metadata_file, 'Laser', acq['laser'])
         write_line(self.metadata_file, 'Intensity (%)', acq['intensity'])
@@ -326,6 +318,11 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         write_line(self.metadata_file, 'Pixelsize in um', self.state['pixelsize'])
         write_line(self.metadata_file, 'Filter', acq['filter'])
         write_line(self.metadata_file, 'Shutter', acq['shutterconfig'])
+        write_line(self.metadata_file)
+        write_line(self.metadata_file, 'SAMPLE')
+        write_line(self.metadata_file, 'sample_id', acq['sample_id'])
+        write_line(self.metadata_file, 'sample_material', acq['sample_material'])
+        write_line(self.metadata_file, 'sample_comment', acq['sample_comment'])
         write_line(self.metadata_file)
         write_line(self.metadata_file, 'POSITION')
         write_line(self.metadata_file, 'x_pos', acq['x_pos'])
@@ -343,15 +340,11 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         write_line(self.metadata_file, 'ETL CFG File', self.state['ETL_cfg_file'])
         write_line(self.metadata_file, 'etl_l_offset', self.state['etl_l_offset'])
         write_line(self.metadata_file, 'etl_l_amplitude', self.state['etl_l_amplitude'])
-        write_line(self.metadata_file, 'etl_r_offset', self.state['etl_r_offset'])
-        write_line(self.metadata_file, 'etl_r_amplitude', self.state['etl_r_amplitude'])
         write_line(self.metadata_file)
         write_line(self.metadata_file, 'GALVO PARAMETERS')
         write_line(self.metadata_file, 'galvo_l_frequency', self.state['galvo_l_frequency'])
         write_line(self.metadata_file, 'galvo_l_amplitude', self.state['galvo_l_amplitude'])
         write_line(self.metadata_file, 'galvo_l_offset', self.state['galvo_l_offset'])
-        #write_line(self.metadata_file, 'galvo_r_amplitude', self.state['galvo_r_amplitude'])
-        write_line(self.metadata_file, 'galvo_r_offset', self.state['galvo_r_offset'])
         write_line(self.metadata_file)
         write_line(self.metadata_file, 'CAMERA PARAMETERS')
         write_line(self.metadata_file, 'camera_type', self.cfg.camera)

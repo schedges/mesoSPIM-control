@@ -29,6 +29,9 @@ class Acquisition(indexed.IndexedOrderedDict):
         filter (str): Filter designation (has to be in the config)
         zoom (str): Zoom designation
         filename (str): Filename for the file to be saved
+        sample_id (str): String for the sample ID (e.g. 05-01, APA01)
+        material (str): String for the material (e.g. LiF, epoxy dots 525nm)
+        sample_comment (str): String for a comment about what has been done to the sample (e.g. thermal neutron exposure)
 
     Attributes:
 
@@ -43,7 +46,7 @@ class Acquisition(indexed.IndexedOrderedDict):
 
     '''
 
-    def __init__(self,
+    def __init__(self,*,
                  x_pos=0,
                  y_pos=0,
                  z_start=0,
@@ -62,9 +65,10 @@ class Acquisition(indexed.IndexedOrderedDict):
                  filename='one.tif',
                  etl_l_offset=0,
                  etl_l_amplitude=0,
-                 etl_r_offset=0,
-                 etl_r_amplitude=0,
-                 processing='MAX'):
+                 processing='MAX',
+                 sample_id='SampleID',
+                 sample_material='UnknownMaterial',
+                 sample_comment=''):
 
         super().__init__()
 
@@ -86,10 +90,10 @@ class Acquisition(indexed.IndexedOrderedDict):
         self['filename']=filename
         self['etl_l_offset']=etl_l_offset
         self['etl_l_amplitude']=etl_l_amplitude
-        self['etl_r_offset']=etl_r_offset
-        self['etl_r_amplitude']=etl_r_amplitude
         self['processing']=processing
-
+        self['sample_id']=sample_id
+        self['sample_material']=sample_material
+        self['sample_comment']=sample_comment
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
@@ -125,6 +129,7 @@ class Acquisition(indexed.IndexedOrderedDict):
         '''
         return self.get_image_count()/framerate
 
+    #Only used at the start of acquisition to do one step backward then forward
     def get_delta_z_and_delta_f_dict(self, inverted=False):
         ''' Returns relative movement dict for z- and f-steps '''
         if self['z_end'] > self['z_start']:
@@ -146,6 +151,7 @@ class Acquisition(indexed.IndexedOrderedDict):
         else:
             return {'x_rel' : 0, 'y_rel': 0, 'z_rel' : -z_rel, 'f_rel' : -f_rel, 'theta_rel': 0}
 
+    #f_steps are calculated separately in Core, so this is just Z
     def get_delta_dict(self):
         ''' Returns relative movement dict for z-steps and f-steps'''
 
@@ -154,13 +160,6 @@ class Acquisition(indexed.IndexedOrderedDict):
             z_rel = abs(self['z_step'])
         else:
             z_rel = -abs(self['z_step'])
-
-        ''' Calculate f-step
-        image_count = self.get_image_count()
-        f_rel = abs((self['f_end'] - self['f_start'])/image_count)
-        if self['f_end'] < self['f_start']:
-            f_rel = -f_rel
-        '''
 
         return {'z_rel' : z_rel}
 
@@ -248,13 +247,6 @@ class AcquisitionList(list):
             ''' Use a default acquistion '''
             self.append(Acquisition())
 
-        # '''
-        # In addition to the list of acquisition objects, the AcquisitionList also
-        # contains a rotation point that is save to rotate the sample to the target
-        # value.
-        # '''
-        # self.rotation_point = {'x_abs' : None, 'y_abs' : None, 'z_abs' : None}
-
     def get_capitalized_keylist(self):
         return self[0].get_capitalized_keylist()
 
@@ -286,22 +278,6 @@ class AcquisitionList(list):
 
     def get_startpoint(self):
         return self[0].get_startpoint()
-
-    # def set_rotation_point(self, dict):
-    #     self.rotation_point = {'x_abs' : dict['x_abs'], 'y_abs' : dict['y_abs'], 'z_abs':dict['z_abs']}
-
-    # def delete_rotation_point(self):
-    #     self.rotation_point = {'x_abs' : None, 'y_abs' : None, 'z_abs' : None}
-
-    # def get_rotation_point_status(self):
-    #     ''' Returns True if an rotation point was set, otherwise False '''
-    #     if self.rotation_point['x_abs'] == None :
-    #         return False
-    #     else:
-    #         return True
-
-    # def get_rotation_point(self):
-    #     return self.rotation_point
 
     def get_all_filenames(self):
         ''' Returns a list of all filenames '''
