@@ -699,9 +699,7 @@ class mesoSPIM_Core(QtCore.QObject):
             QtWidgets.QApplication.processEvents()
 
             self.sig_state_request.emit({'etl_l_amplitude' : acq_list[0]['etl_l_amplitude']})
-            self.sig_state_request.emit({'etl_r_amplitude' : acq_list[0]['etl_r_amplitude']})
             self.sig_state_request.emit({'etl_l_offset' : acq_list[0]['etl_l_offset']})
-            self.sig_state_request.emit({'etl_r_offset' : acq_list[0]['etl_r_offset']})
             self.set_intensity(acq_list[0]['intensity'])
             time.sleep(0.1) # tiny sleep period to allow Main Window indicators to catch up
             self.sig_finished.emit()
@@ -747,9 +745,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.set_laser(acq['laser'], wait_until_done=False, update_etl=False)
 
         self.sig_state_request.emit({'etl_l_amplitude' : acq['etl_l_amplitude']})
-        self.sig_state_request.emit({'etl_r_amplitude' : acq['etl_r_amplitude']})
         self.sig_state_request.emit({'etl_l_offset' : acq['etl_l_offset']})
-        self.sig_state_request.emit({'etl_r_offset' : acq['etl_r_offset']})
 
         self.sig_status_message.emit('Ready for preview...')
         self.sig_update_gui_from_state.emit()
@@ -785,9 +781,7 @@ class mesoSPIM_Core(QtCore.QObject):
         QtWidgets.QApplication.processEvents()
 
         self.sig_state_request.emit({'etl_l_amplitude' : acq['etl_l_amplitude']})
-        self.sig_state_request.emit({'etl_r_amplitude' : acq['etl_r_amplitude']})
         self.sig_state_request.emit({'etl_l_offset' : acq['etl_l_offset']})
-        self.sig_state_request.emit({'etl_r_offset' : acq['etl_r_offset']})
         self.f_step_generator = acq.get_focus_stepsize_generator()
 
         if self.TTL_mode_enabled_in_cfg is True:

@@ -389,8 +389,6 @@ class mesoSPIM_AcquisitionManagerWindow(QtWidgets.QWidget):
         if row is not None:
             self.model.setDataFromState(row, 'etl_l_offset')
             self.model.setDataFromState(row, 'etl_l_amplitude')
-            self.model.setDataFromState(row, 'etl_r_offset')
-            self.model.setDataFromState(row, 'etl_r_amplitude')
         else:
             if self.model.rowCount() == 1:
                 self.set_selected_row(0)
