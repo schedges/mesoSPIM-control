@@ -65,7 +65,7 @@ class Acquisition(indexed.IndexedOrderedDict):
                  filename='one.tif',
                  etl_l_offset=0,
                  etl_l_amplitude=0,
-                 processing='MAX',
+                 processing='None',
                  sample_id='SampleID',
                  sample_material='UnknownMaterial',
                  sample_comment=''):
@@ -85,17 +85,21 @@ class Acquisition(indexed.IndexedOrderedDict):
         self['intensity']=intensity
         self['filter']=filter
         self['zoom']=zoom
-        self['shutterconfig']=shutterconfig
+        self['shutterconfig']="Left"
         self['folder']=folder
         self['filename']=filename
         self['etl_l_offset']=etl_l_offset
         self['etl_l_amplitude']=etl_l_amplitude
-        self['processing']=processing
+        self['processing']="None"
         self['sample_id']=sample_id
         self['sample_material']=sample_material
         self['sample_comment']=sample_comment
 
     def __setitem__(self, key, value):
+        if key == "shutterconfig":
+            value = "Left"
+        if key == "processing":
+            value = "None"
         super().__setitem__(key, value)
 
     def __call__(self, index):

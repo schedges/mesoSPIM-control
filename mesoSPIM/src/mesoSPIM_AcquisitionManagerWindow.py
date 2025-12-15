@@ -82,6 +82,12 @@ class mesoSPIM_AcquisitionManagerWindow(QtWidgets.QWidget):
         self.model = AcquisitionModel(table=None, parent=self)
 
         self.table.setModel(self.model) # self.table is a QTableView object
+        for key in ('shutterconfig','processing'):
+            try:
+                col = self.model._table[0].keys().index(key)
+                self.table.setColumnHidden(col,True)
+            except ValueError:
+                pass
         self.model.dataChanged.connect(self.set_state)
         self.model.dataChanged.connect(self.update_acquisition_time_prediction)
         self.model.dataChanged.connect(self.update_acquisition_size_prediction)
@@ -375,7 +381,6 @@ class mesoSPIM_AcquisitionManagerWindow(QtWidgets.QWidget):
             self.model.setDataFromState(row, 'zoom')
             self.model.setDataFromState(row, 'laser')
             self.model.setDataFromState(row, 'intensity')
-            self.model.setDataFromState(row, 'shutterconfig')
         else:
             if self.model.rowCount() == 1:
                 self.set_selected_row(0)

@@ -72,6 +72,8 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
 
         self.acquisition_manager_window = mesoSPIM_AcquisitionManagerWindow(self)
         self.acquisition_manager_window.show()
+        QtCore.QTimer.singleShot(0, self.acquisition_manager_window.table.resizeColumnsToContents)
+        self.acquisition_manager_window.table.horizontalHeader().setMinimumSectionSize(150)
 
         self.tile_view_window = mesoSPIM_TileViewWindow(self)
         self.tile_view_window.show()
