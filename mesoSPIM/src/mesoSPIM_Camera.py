@@ -29,13 +29,14 @@ class mesoSPIM_Camera(QtCore.QObject):
     sig_temperature = QtCore.pyqtSignal(float)
     sig_overheat_stop = QtCore.pyqtSignal()
 
-    def __init__(self, parent, frame_queue, frame_queue_display):
+    def __init__(self, parent, frame_queue, frame_queue_display,timestamp_queue):
         super().__init__()
 
         self.parent = parent # a mesoSPIM_Core() object
         self.cfg = parent.cfg
         self.frame_queue = frame_queue
         self.frame_queue_display = frame_queue_display
+        self.timestamp_queue = timestamp_queue
 
         self.state = self.parent.state # a mesoSPIM_StateSingleton() object
         self.stopflag = False
@@ -167,9 +168,12 @@ class mesoSPIM_Camera(QtCore.QObject):
             if self.cur_image < self.max_frame:
                 logger.debug(f'Adding images to series')
                 log_cpu_core(logger, msg='add_images_to_series()')
-                images = self.camera.get_images_in_series()
+                
+                images,timestamps = self.get_images_and_timestamps_in_series()
                 logger.debug(f'Got {len(images)} images')
                 self.frame_queue.extend(images) # push the list of images into queue
+                self.timestamp_queue.extend(timestamps)
+
                 # show an image every other timepoint to prevent GUI freezing in long acquisitions
                 if self.cur_image % self.camera_display_temporal_subsampling == 0:
                     self.frame_queue_display.append(np.rot90(images[0])) # push the first image into the display queue
@@ -311,6 +315,10 @@ class mesoSPIM_GenericCamera(QtCore.QObject):
         '''Should return a single numpy array'''
         pass
 
+    def get_images_and_timestamps_in_series(self):
+        '''Should return a numpy array and a list of corresponding timestamps'''
+        pass
+
     def close_image_series(self):
         pass
 
@@ -362,6 +370,9 @@ class mesoSPIM_DemoCamera(mesoSPIM_GenericCamera):
 
     def get_images_in_series(self):
         return [self._create_random_image()]
+    
+    def get_images_and_timestamps_in_series(self):
+        return [self._create_random_image()],[time.monotonic_ns()]
 
     def get_image(self):
         return self._create_random_image()
@@ -467,7 +478,13 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
         [frames, _] = self.hcam.getFrames()
         images = [np.reshape(aframe.getData(), (-1,self.x_pixels)) for aframe in frames]
         return images
-
+    
+    def get_images_and_timestamps_in_series(self):
+        [frames, _] = self.hcam.getFrames()
+        images = [np.reshape(aframe.getData(), (-1,self.x_pixels)) for aframe in frames]
+        timestamps = [aframe.timestamp for aframe in frames]
+        return images,timestamps
+    
     def close_image_series(self):
         self.hcam.stopAcquisition()
 
@@ -483,6 +500,8 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
     def get_live_image(self):
         [frames, _] = self.hcam.getFrames()
         images = [np.reshape(aframe.getData(), (-1,self.x_pixels)) for aframe in frames]
+        for frame in frames:
+            print(frame.timestamp)
         return images
 
     def close_live_mode(self):

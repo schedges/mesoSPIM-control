@@ -13,6 +13,7 @@ Updated for Win7/Win10 usage by Fabian Voigt, June 14th, 2018
 import ctypes
 import ctypes.util
 import numpy
+import time
 
 # for debugging
 import sys
@@ -410,7 +411,6 @@ class HamamatsuCamera(object):
             self.checkStatus(dcam.dcambuf_lockframe(self.camera_handle,
                                                 ctypes.byref(paramlock)),
                              "dcambuf_lockframe")
-
             # Create storage for the frame & copy into this storage.
             hc_data = HCamData(self.frame_bytes)
             hc_data.copyData(paramlock.buf)
@@ -844,6 +844,8 @@ class HamamatsuCameraMR(HamamatsuCamera):
         """
         frames = []
         for n in self.newFrames():
+            ts = time.monotonic_ns()
+            self.hcam_data[n].timestamp = ts
             frames.append(self.hcam_data[n])
 
         return [frames, [self.frame_x, self.frame_y]]

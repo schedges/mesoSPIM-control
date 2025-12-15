@@ -17,13 +17,14 @@ from .utils.acquisitions import AcquisitionList, Acquisition
 from .utils.utility_functions import write_line, gb_size_of_array_shape, replace_with_underscores, log_cpu_core
 
 class mesoSPIM_ImageWriter(QtCore.QObject):
-    def __init__(self, parent, frame_queue):
+    def __init__(self, parent, frame_queue, timestamp_queue):
         '''Image and metadata writer class. Parent is mesoSPIM_Camera() object'''
         super().__init__()
 
         self.parent = parent # a mesoSPIM_Camera() object
         self.cfg = parent.cfg
         self.frame_queue = frame_queue
+        self.timestamp_queue = timestamp_queue
 
         self.state = self.parent.state # a mesoSPIM_StateSingleton() object
         self.running_flag = self.abort_flag = False
@@ -213,11 +214,12 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             while len(self.frame_queue) > 0:
                 logger.debug('image queue length: ' + str(len(self.frame_queue)))
                 image = np.rot90(self.frame_queue.popleft())
-                self.image_to_disk(acq, acq_list, image)
+                timestamp = self.timestamp_queue.popleft()
+                self.image_to_disk(acq, acq_list, image, timestamp)
         else:
             logger.debug('self.running_flag = False, no images written')
 
-    def image_to_disk(self, acq, acq_list, image):
+    def image_to_disk(self, acq, acq_list, image, timestamp=0):
         logger.debug('image_to_disk() started') 
         log_cpu_core(logger, msg='image_to_disk()')
         if self.cur_image_counter % 5 == 0:
@@ -256,7 +258,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             imgmeta["z"][i] = acq["z_start"] #TODO
             imgmeta["theta"][i] = acq["rot"]
             imgmeta["f"][i] =  1 #TODO
-            imgmeta["timestamp"][i] =  1 #TODO
+            imgmeta["timestamp"][i] = timestamp
 
             imgmeta["sample_id"][i] = acq["sample_id"]
             imgmeta["sample_material"][i] = acq["sample_material"]
