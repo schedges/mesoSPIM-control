@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class FilenameWizard(QtWidgets.QWizard):
     wizard_done = QtCore.pyqtSignal()
 
-    num_of_pages = 6
-    (welcome, raw, tiff, bigtiff, single_hdf5, finished) = range(num_of_pages)
+    num_of_pages = 7
+    (welcome, raw, tiff, bigtiff, single_hdf5, simple_hdf5, finished) = range(num_of_pages)
 
     def __init__(self, parent=None):
         '''Parent is object of class mesoSPIM_AcquisitionManagerWindow()'''
@@ -25,14 +25,15 @@ class FilenameWizard(QtWidgets.QWizard):
         through '''
         self.parent = parent
         self.state = self.parent.state # the mesoSPIM_StateSingleton() instance
-        self.file_format = None  # 'raw', 'h5', 'tiff', 'btf'
+        self.file_format = None  # 'raw', 'h5', 'tiff', 'btf', "h5"
         self.setWindowTitle('Filename Wizard')
         self.setPage(0, FilenameWizardWelcomePage(self))
         self.setPage(1, FilenameWizardRawSelectionPage(self))
         self.setPage(2, FilenameWizardTiffSelectionPage(self))
         self.setPage(3, FilenameWizardBigTiffSelectionPage(self))
         self.setPage(4, FilenameWizardSingleHDF5SelectionPage(self))
-        self.setPage(5, FilenameWizardCheckResultsPage(self))
+        self.setPage(5, FilenameWizardSimpleHDF5SelectionPage(self))
+        self.setPage(6, FilenameWizardCheckResultsPage(self))
         self.setStyleSheet(''' font-size: 16px; ''')
         self.show()
 
@@ -83,9 +84,6 @@ class FilenameWizard(QtWidgets.QWizard):
                 if self.field('Filter'):
                     filename += replace_with_underscores(self.parent.model.getFilter(row)) + '_'
 
-                # if self.field('Zoom'):
-                #     filename += replace_with_underscores(self.parent.model.getZoom(row)) + '_'
-
                 if self.field('Shutterconfig'):
                     filename += self.parent.model.getShutterconfig(row) + '_'
 
@@ -116,15 +114,28 @@ class FilenameWizard(QtWidgets.QWizard):
 
                 file_suffix = '.' + self.file_format
 
-            elif self.file_format == 'h5':
+            elif self.file_format == 'bdv':
                 if self.field('DescriptionHDF5'):
                     filename += replace_with_underscores(self.field('DescriptionHDF5')) + '_'
                 filename += f'Mag{self.parent.model.getZoom(0)}'
                 laser_list = self.parent.model.getLaserList()
                 for laser in laser_list:
                     filename += '_ch' + laser[:-3]
-                file_suffix = '_bdv.' + self.file_format
+                file_suffix = '_bdv.h5'
 
+            elif self.file_format == "h5":
+                sample_material = self.parent.model.getSampleMaterial(row)
+                sample_id = self.parent.model.getSampleID(row)
+                zoom = self.parent.model.getZoom(row)
+                laser = self.parent.model.getLaser(row)[:-3]
+                            
+                filename += f'{sample_material}_{sample_id}_Mag{zoom}_ch{laser}'
+
+                desc = self.field('DescriptionSimpleHDF5')
+                if desc:
+                    filename += f'_{replace_with_underscores(desc)}'
+
+                file_suffix = ".h5"
             else:
                 raise ValueError(f"file suffix invalid: {self.file_format}")
 
@@ -152,11 +163,12 @@ class FilenameWizardWelcomePage(QtWidgets.QWizardPage):
         self.raw_string = 'Individual Raw Files: ~.raw'
         self.tiff_string = 'ImageJ TIFF files: ~.tiff'
         self.bigtiff_string = 'BigTIFF files: ~.btf'
-        self.single_hdf5_string = 'BigDataViewer HDF5 file: ~.h5'
+        self.single_hdf5_string = 'BigDataViewer HDF5 file: ~_bdv.h5'
+        self.simple_hdf5_string = "Simple HDF5 file: ~.h5"
 
         self.SaveAsComboBoxLabel = QtWidgets.QLabel('Save as:')
         self.SaveAsComboBox = QtWidgets.QComboBox()
-        self.SaveAsComboBox.addItems([self.raw_string, self.tiff_string, self.bigtiff_string, self.single_hdf5_string])
+        self.SaveAsComboBox.addItems([self.raw_string, self.tiff_string, self.bigtiff_string, self.single_hdf5_string,self.simple_hdf5_string])
         self.SaveAsComboBox.setCurrentIndex(3)
 
         self.registerField('SaveAs', self.SaveAsComboBox, 'currentIndex')
@@ -177,8 +189,11 @@ class FilenameWizardWelcomePage(QtWidgets.QWizardPage):
             self.parent.file_format = 'btf'
             return self.parent.bigtiff
         elif self.SaveAsComboBox.currentText() == self.single_hdf5_string:
-            self.parent.file_format = 'h5'
+            self.parent.file_format = 'bdv'
             return self.parent.single_hdf5
+        elif self.SaveAsComboBox.currentText() == self.simple_hdf5_string:
+            self.parent.file_format = 'h5'
+            return self.parent.simple_hdf5
 
 
 class AbstractSelectionPage(QtWidgets.QWizardPage):
@@ -280,12 +295,25 @@ class FilenameWizardSingleHDF5SelectionPage(AbstractSelectionPage):
         self.setSubTitle("All raw data saved into one hdf5 file, accompanied by two metadata files."
                          "\nFilename example: {Description}_Mag1x_ch488_ch561_bdv.h5")
         self.registerField('DescriptionHDF5', self.DescriptionLineEdit)
-
+        
     def validatePage(self):
         self.parent.generate_filename_list(increment_number=False)
-        return super().validatePage()
+        return QtWidgets.QWizardPage.validatePage(self)
 
+class FilenameWizardSimpleHDF5SelectionPage(AbstractSelectionPage):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTitle("Autogenerate simple hdf5 filename")
+        self.setSubTitle(
+            "Each acquisition row will be saved as its own simple HDF5 file.\n"
+            "Pattern: <material>_<sample_id>_Mag<mag>x_ch<wavelength>_<description>.h5"
+        )
+        self.registerField('DescriptionSimpleHDF5', self.DescriptionLineEdit)
 
+    def validatePage(self):
+        self.parent.generate_filename_list()
+        return QtWidgets.QWizardPage.validatePage(self)
+    
 class FilenameWizardCheckResultsPage(QtWidgets.QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -305,12 +333,12 @@ class FilenameWizardCheckResultsPage(QtWidgets.QWizardPage):
         self.setLayout(self.layout)
 
     def initializePage(self):
-        if self.parent.file_format in ('raw', 'tiff', 'btf'):
+        if self.parent.file_format in ('raw', 'tiff', 'btf', "h5"):
             file_list = self.parent.filename_list
-        elif self.parent.file_format == 'h5':
+        elif self.parent.file_format == 'bdv':
             file_list = [self.parent.filename_list[0]]
         else:
-            raise ValueError(f"file_format must be in ('raw', 'tiff', 'btf', 'h5'), received {self.parent.file_format}")
+            raise ValueError(f"file_format must be in ('raw', 'tiff', 'btf', 'h5', 'bdv'), received {self.parent.file_format}")
 
         for f in file_list:
             self.mystring += f

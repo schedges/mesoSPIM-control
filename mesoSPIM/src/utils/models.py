@@ -332,6 +332,18 @@ class AcquisitionModel(QtCore.QAbstractTableModel):
     def getTileIndex(self, row):
         return self._table.get_tile_index(self._table[row])
 
+    def getSampleID(self,row):
+        return self._table[row]['sample_id']
+
+    def getSampleID(self,row):
+        return self._table[row]['sample_id']
+    
+    def getSampleMaterial(self,row):
+        return self._table[row]['sample_material']
+    
+    def getSampleComment(self,row):
+        return self._table[row]['sample_comment']
+
     def get_acquisition_list(self, row=None):
         if row is None:
             return self._table

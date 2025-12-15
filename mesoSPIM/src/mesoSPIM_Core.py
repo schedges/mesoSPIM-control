@@ -968,6 +968,9 @@ class mesoSPIM_Core(QtCore.QObject):
         Appends a metadata.txt file
         Path contains the file to be written
         '''
+        if self.image_writer.file_extension == ".h5":
+            return
+        
         path = acq['folder'] + '/' + replace_with_underscores(acq['filename'])
         metadata_path = os.path.dirname(path) + '/' + os.path.basename(path) + '_meta.txt'
         with open(metadata_path, 'a') as file:

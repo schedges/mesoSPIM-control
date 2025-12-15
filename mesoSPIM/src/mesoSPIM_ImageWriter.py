@@ -12,6 +12,7 @@ import sys
 from PyQt5 import QtCore
 from distutils.version import StrictVersion
 import npy2bdv
+import h5py
 from .utils.acquisitions import AcquisitionList, Acquisition
 from .utils.utility_functions import write_line, gb_size_of_array_shape, replace_with_underscores, log_cpu_core
 
@@ -39,6 +40,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
 
         self.file_extension = ''
         self.bdv_writer = self.tiff_writer = self.tiff_mip_writer = self.mip_image = None
+        self.simple_h5_writers = {}
         self.tiff_aliases = ('.tif', '.tiff')
         self.bigtiff_aliases = ('.btf', '.tf2', '.tf8')
         self.check_versions()
@@ -66,17 +68,24 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         self.path = os.path.realpath(self.folder+'/'+self.filename)
         self.MIP_path = os.path.realpath(self.folder +'/MAX_'+ self.filename + '.tiff')
         self.file_root, self.file_extension = os.path.splitext(self.path)
+        if "_bdv.h5" in self.path:
+            self.file_extension = "_bdv.h5"
         logger.info(f'Save path: {self.path}')
 
         self.binning_string = self.state['camera_binning'] # Should return a string in the form '2x4'
         self.x_binning = int(self.binning_string[0])
         self.y_binning = int(self.binning_string[2])
 
-        self.x_pixels = int(self.x_pixels / self.x_binning)
-        self.y_pixels = int(self.y_pixels / self.y_binning)
-        self.max_frame = acq.get_image_count()
+        sensor_x = int(self.cfg.camera_parameters['x_pixels'])
+        sensor_y = int(self.cfg.camera_parameters['y_pixels'])
+        self.x_pixels = int(sensor_x / self.x_binning)
+        self.y_pixels = int(sensor_y / self.y_binning)
 
-        if self.file_extension == '.h5':
+        self.max_frame = acq.get_image_count()
+        if self.file_extension == ".h5":
+            self.max_frame = self.get_total_image_count(acq,acq_list)
+
+        if self.file_extension == '_bdv.h5':
             if hasattr(self.cfg, "hdf5"):
                 subsamp = self.cfg.hdf5['subsamp']
                 compression = self.cfg.hdf5['compression']
@@ -131,6 +140,60 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         elif self.file_extension in self.bigtiff_aliases:
             self.tiff_writer = tifffile.TiffWriter(self.path, bigtiff=True)
 
+        elif self.file_extension == ".h5":
+            if not self.filename in self.simple_h5_writers:
+                f = h5py.File(self.path,"w")
+                img_dset = f.create_dataset(
+                    "images",
+                    shape=(self.max_frame,self.x_pixels,self.y_pixels),
+                    dtype = "uint16",
+                    chunks = (1,self.x_pixels,self.y_pixels),
+                    compression="gzip",
+                    compression_opts=4
+                )
+                frame_index = 0
+
+                #Fixed acqusition parameters, not changeable via acquisition rows
+                metadata_grp = f.create_group("acq_metadata")
+                metadata_grp.attrs["etl_config_file"] = self.state['ETL_cfg_file']
+                metadata_grp.attrs["galvo_frequency"] = self.state['galvo_l_frequency']
+                metadata_grp.attrs["galvo_amplitude"] = self.state['galvo_l_amplitude']
+                metadata_grp.attrs["galvo_offset"] = self.state['galvo_l_offset']
+                metadata_grp.attrs["camera_type"] = self.cfg.camera
+                metadata_grp.attrs["camera_exposure_sec"] = self.state['camera_exposure_time']
+                metadata_grp.attrs["sensor_x_pixels"] = self.cfg.camera_parameters['x_pixels']
+                metadata_grp.attrs["sensor_y_pixels"] = self.cfg.camera_parameters['y_pixels']
+                metadata_grp.attrs["sensor_cooler"] = self.cfg.camera_parameters['sensor_cooler']
+ 
+                #Potentially changeable with each acquisition row, i.e. once value written per image
+                image_metadata_grp = f.create_group("image_metadata")
+                image_x = image_metadata_grp.create_dataset("x",shape=(self.max_frame,),dtype="f8")
+                image_y = image_metadata_grp.create_dataset("y",shape=(self.max_frame,),dtype="f8")
+                image_z = image_metadata_grp.create_dataset("z",shape=(self.max_frame,),dtype="f8")
+                image_rot = image_metadata_grp.create_dataset("theta",shape=(self.max_frame,),dtype="f8")
+                image_f = image_metadata_grp.create_dataset("f",shape=(self.max_frame,),dtype="f8")
+                image_sample_id = image_metadata_grp.create_dataset("sample_id",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_sample_material = image_metadata_grp.create_dataset("sample_material",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_sample_comment = image_metadata_grp.create_dataset("sample_comment",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_laser = image_metadata_grp.create_dataset("laser",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_laser_intensity = image_metadata_grp.create_dataset("laser_intensity",shape=(self.max_frame,),dtype="f8")
+                image_zoom = image_metadata_grp.create_dataset("zoom",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_pixelsize_x = image_metadata_grp.create_dataset("pixelsize_x",shape=(self.max_frame,),dtype="f8")
+                image_pixelsize_y = image_metadata_grp.create_dataset("pixelsize_y",shape=(self.max_frame,),dtype="f8")
+                image_shutter = image_metadata_grp.create_dataset("shutter",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_filter = image_metadata_grp.create_dataset("filter",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
+                image_etl_offset = image_metadata_grp.create_dataset("etl_offset",shape=(self.max_frame,),dtype="f8")
+                image_etl_amplitude = image_metadata_grp.create_dataset("etl_amplitude",shape=(self.max_frame,),dtype="f8")
+                image_timestamp = image_metadata_grp.create_dataset("timestamp",shape=(self.max_frame,),dtype="f8")
+                                
+                self.simple_h5_writers[self.filename] = {
+                            "file": f,
+                            "frame_index": frame_index,
+                            "images": img_dset,
+                            "acquisition_metadata": metadata_grp,
+                            "image_metadata": image_metadata_grp
+                        }
+
         if acq['processing'] == 'MAX' and self.file_extension in (('.raw',) + self.tiff_aliases + self.bigtiff_aliases):
             self.tiff_mip_writer = tifffile.TiffWriter(self.MIP_path, imagej=True)
             self.mip_image = np.zeros((self.x_pixels, self.y_pixels), 'uint16')
@@ -160,7 +223,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         if self.cur_image_counter % 5 == 0:
             self.parent.sig_status_message.emit('Writing to disk...')
         xy_res = (1./self.cfg.pixelsize[acq['zoom']], 1./self.cfg.pixelsize[acq['zoom']])
-        if self.file_extension == '.h5':
+        if self.file_extension == '_bdv.h5':
             self.bdv_writer.append_plane(plane=image, z=self.cur_image_counter,
                                             illumination=acq_list.find_value_index(acq['shutterconfig'], 'shutterconfig'),
                                             channel=acq_list.find_value_index(acq['laser'], 'laser'),
@@ -179,6 +242,45 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         elif self.file_extension in self.bigtiff_aliases:
             self.tiff_writer.write(image[np.newaxis,...], contiguous=False, resolution=xy_res, # tile=(1024,1024), compression='lzw', #compression requires imagecodecs
                                     metadata={'spacing': acq['z_step'], 'unit': 'um'})
+        elif self.file_extension == ".h5":
+            #Get h5 simple writer
+            filename = replace_with_underscores(acq['filename'])
+            writer = self.simple_h5_writers[filename] #Updated by prepAcquisition just prior to each row
+            i = writer["frame_index"]
+            #Write image
+            writer["images"][i,:,:] = image
+
+            imgmeta = writer["image_metadata"]
+            imgmeta["x"][i] = acq["x_pos"]
+            imgmeta["y"][i] = acq["y_pos"]
+            imgmeta["z"][i] = acq["z_start"] #TODO
+            imgmeta["theta"][i] = acq["rot"]
+            imgmeta["f"][i] =  1 #TODO
+            imgmeta["timestamp"][i] =  1 #TODO
+
+            imgmeta["sample_id"][i] = acq["sample_id"]
+            imgmeta["sample_material"][i] = acq["sample_material"]
+            imgmeta["sample_comment"][i] = acq["sample_comment"]
+
+            imgmeta["laser"][i] = acq["laser"]
+            imgmeta["laser_intensity"][i] = acq["intensity"]
+            imgmeta["zoom"][i] = acq["zoom"]
+
+            px = float(self.cfg.pixelsize[acq["zoom"]])
+            py = px
+            imgmeta["pixelsize_x"][i] = px
+            imgmeta["pixelsize_y"][i] = py
+
+            imgmeta["shutter"][i] = acq["shutterconfig"]
+            imgmeta["filter"][i] = acq["filter"]
+            imgmeta["etl_offset"][i] = acq["etl_l_offset"]
+            imgmeta["etl_amplitude"][i] = acq["etl_l_amplitude"]
+
+            # Optional: flush every 100 frames, BDV-style
+            if (i + 1) % 100 == 0:
+                writer["file"].flush()
+
+            writer["frame_index"] += 1
 
         if acq['processing'] == 'MAX' and self.file_extension in (('.raw',) + self.tiff_aliases + self.bigtiff_aliases):
             self.mip_image[:] = np.maximum(self.mip_image, image)
@@ -192,13 +294,20 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         self.abort_flag = True
         if self.running_flag:
             try:
-                if self.file_extension == '.h5':
+                if self.file_extension == '_bdv.h5':
                     self.bdv_writer.close()
                 elif self.file_extension == '.raw':
                     del self.xy_stack
                 elif self.file_extension in (self.tiff_aliases + self.bigtiff_aliases):
                     self.tiff_writer.close()
-                self.metadata_file.close()
+                elif self.file_extension == ".h5":
+                    for writer in self.simple_h5_writers.values(): 
+                        writer["file"].flush()
+                        writer["file"].close()
+                    self.simple_h5_writers.clear()                
+                
+                if hasattr(self, "metadata_file") and self.metadata_file is not None:
+                    self.metadata_file.close()
             except Exception as e:
                 logger.error(f'{e}')
             self.parent.sig_status_message.emit("Writing terminated, files closed")
@@ -210,7 +319,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
     @QtCore.pyqtSlot(Acquisition, AcquisitionList)
     def end_acquisition(self, acq, acq_list):
         logger.info("end_acquisition() started")
-        if self.file_extension == '.h5':
+        if self.file_extension == '_bdv.h5':
             if acq == acq_list[-1]:
                 try:
                     self.bdv_writer.set_attribute_labels('channel', tuple(acq_list.get_unique_attr_list('laser')))
@@ -236,6 +345,19 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
                 self.tiff_writer.close()
             except Exception as e:
                 logger.error(f'{e}')
+        elif self.file_extension == ".h5":
+            idx = acq_list.index(acq)
+            more_to_write = False
+            for row_idx in range(idx+1,len(acq_list)):
+                if self.filename == replace_with_underscores(acq_list[row_idx]["filename"]):
+                    more_to_write = True
+                    break
+            if more_to_write == False:
+                writer = self.simple_h5_writers[self.filename]
+                writer["file"].flush()
+                writer["file"].close()
+            if idx==len(acq_list)-1:
+                self.simple_h5_writers.clear()
 
         if acq['processing'] == 'MAX' and self.file_extension in (('.raw',) + self.tiff_aliases + self.bigtiff_aliases):
             try:
@@ -296,62 +418,71 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
 
     @QtCore.pyqtSlot(Acquisition, AcquisitionList)
     def write_metadata(self, acq, acq_list):
-        logger.debug("write_metadata() started")
-        ''' Writes a metadata.txt file. Path contains the file to be written '''
-        path = acq['folder'] + '/' + acq['filename']
-        metadata_path = os.path.dirname(path) + '/' + os.path.basename(path) + '_meta.txt'
+        if not self.file_extension==".h5":
+            logger.debug("write_metadata() started")
+            ''' Writes a metadata.txt file. Path contains the file to be written '''
+            path = acq['folder'] + '/' + acq['filename']
+            metadata_path = os.path.dirname(path) + '/' + os.path.basename(path) + '_meta.txt'
 
-        if acq['filename'][-3:] == '.h5':
-            if acq == acq_list[0]:
-                self.metadata_file = open(metadata_path, 'w')
+            if acq['filename'].endswith('_bdv.h5'):
+                if acq == acq_list[0]:
+                    self.metadata_file = open(metadata_path, 'w')
+                else:
+                    self.metadata_file = open(metadata_path, 'a')
             else:
-                self.metadata_file = open(metadata_path, 'a')
-        else:
-            self.metadata_file = open(metadata_path, 'w')
+                self.metadata_file = open(metadata_path, 'w')
 
-        write_line(self.metadata_file, 'Metadata for file', path)
-        write_line(self.metadata_file)
-        write_line(self.metadata_file, 'CFG')
-        write_line(self.metadata_file, 'Laser', acq['laser'])
-        write_line(self.metadata_file, 'Intensity (%)', acq['intensity'])
-        write_line(self.metadata_file, 'Zoom', acq['zoom'])
-        write_line(self.metadata_file, 'Pixelsize in um', self.state['pixelsize'])
-        write_line(self.metadata_file, 'Filter', acq['filter'])
-        write_line(self.metadata_file, 'Shutter', acq['shutterconfig'])
-        write_line(self.metadata_file)
-        write_line(self.metadata_file, 'SAMPLE')
-        write_line(self.metadata_file, 'sample_id', acq['sample_id'])
-        write_line(self.metadata_file, 'sample_material', acq['sample_material'])
-        write_line(self.metadata_file, 'sample_comment', acq['sample_comment'])
-        write_line(self.metadata_file)
-        write_line(self.metadata_file, 'POSITION')
-        write_line(self.metadata_file, 'x_pos', acq['x_pos'])
-        write_line(self.metadata_file, 'y_pos', acq['y_pos'])
-        write_line(self.metadata_file, 'f_start', acq['f_start'])
-        write_line(self.metadata_file, 'f_end', acq['f_end'])
-        write_line(self.metadata_file, 'z_start', acq['z_start'])
-        write_line(self.metadata_file, 'z_end', acq['z_end'])
-        write_line(self.metadata_file, 'z_stepsize', acq['z_step'])
-        write_line(self.metadata_file, 'z_planes', acq.get_image_count())
-        write_line(self.metadata_file, 'rot', acq['rot'])
-        write_line(self.metadata_file)
-        ''' Attention: change to true ETL values ASAP '''
-        write_line(self.metadata_file, 'ETL PARAMETERS')
-        write_line(self.metadata_file, 'ETL CFG File', self.state['ETL_cfg_file'])
-        write_line(self.metadata_file, 'etl_l_offset', self.state['etl_l_offset'])
-        write_line(self.metadata_file, 'etl_l_amplitude', self.state['etl_l_amplitude'])
-        write_line(self.metadata_file)
-        write_line(self.metadata_file, 'GALVO PARAMETERS')
-        write_line(self.metadata_file, 'galvo_l_frequency', self.state['galvo_l_frequency'])
-        write_line(self.metadata_file, 'galvo_l_amplitude', self.state['galvo_l_amplitude'])
-        write_line(self.metadata_file, 'galvo_l_offset', self.state['galvo_l_offset'])
-        write_line(self.metadata_file)
-        write_line(self.metadata_file, 'CAMERA PARAMETERS')
-        write_line(self.metadata_file, 'camera_type', self.cfg.camera)
-        write_line(self.metadata_file, 'camera_exposure', self.state['camera_exposure_time'])
-        write_line(self.metadata_file, 'camera_line_interval', self.state['camera_line_interval'])
-        write_line(self.metadata_file, 'x_pixels', self.cfg.camera_parameters['x_pixels'])
-        write_line(self.metadata_file, 'y_pixels', self.cfg.camera_parameters['y_pixels'])
-        write_line(self.metadata_file)
-        self.metadata_file.close()
-        logger.debug("write_metadata() ended")
+            write_line(self.metadata_file, 'Metadata for file', path)
+            write_line(self.metadata_file)
+            write_line(self.metadata_file, 'CFG')
+            write_line(self.metadata_file, 'Laser', acq['laser'])
+            write_line(self.metadata_file, 'Intensity (%)', acq['intensity'])
+            write_line(self.metadata_file, 'Zoom', acq['zoom'])
+            write_line(self.metadata_file, 'Pixelsize in um', self.state['pixelsize'])
+            write_line(self.metadata_file, 'Filter', acq['filter'])
+            write_line(self.metadata_file, 'Shutter', acq['shutterconfig'])
+            write_line(self.metadata_file)
+            write_line(self.metadata_file, 'SAMPLE')
+            write_line(self.metadata_file, 'sample_id', acq['sample_id'])
+            write_line(self.metadata_file, 'sample_material', acq['sample_material'])
+            write_line(self.metadata_file, 'sample_comment', acq['sample_comment'])
+            write_line(self.metadata_file)
+            write_line(self.metadata_file, 'POSITION')
+            write_line(self.metadata_file, 'x_pos', acq['x_pos'])
+            write_line(self.metadata_file, 'y_pos', acq['y_pos'])
+            write_line(self.metadata_file, 'f_start', acq['f_start'])
+            write_line(self.metadata_file, 'f_end', acq['f_end'])
+            write_line(self.metadata_file, 'z_start', acq['z_start'])
+            write_line(self.metadata_file, 'z_end', acq['z_end'])
+            write_line(self.metadata_file, 'z_stepsize', acq['z_step'])
+            write_line(self.metadata_file, 'z_planes', acq.get_image_count())
+            write_line(self.metadata_file, 'rot', acq['rot'])
+            write_line(self.metadata_file)
+            ''' Attention: change to true ETL values ASAP '''
+            write_line(self.metadata_file, 'ETL PARAMETERS')
+            write_line(self.metadata_file, 'ETL CFG File', self.state['ETL_cfg_file'])
+            write_line(self.metadata_file, 'etl_l_offset', self.state['etl_l_offset'])
+            write_line(self.metadata_file, 'etl_l_amplitude', self.state['etl_l_amplitude'])
+            write_line(self.metadata_file)
+            write_line(self.metadata_file, 'GALVO PARAMETERS')
+            write_line(self.metadata_file, 'galvo_l_frequency', self.state['galvo_l_frequency'])
+            write_line(self.metadata_file, 'galvo_l_amplitude', self.state['galvo_l_amplitude'])
+            write_line(self.metadata_file, 'galvo_l_offset', self.state['galvo_l_offset'])
+            write_line(self.metadata_file)
+            write_line(self.metadata_file, 'CAMERA PARAMETERS')
+            write_line(self.metadata_file, 'camera_type', self.cfg.camera)
+            write_line(self.metadata_file, 'camera_exposure', self.state['camera_exposure_time'])
+            write_line(self.metadata_file, 'camera_line_interval', self.state['camera_line_interval'])
+            write_line(self.metadata_file, 'x_pixels', self.cfg.camera_parameters['x_pixels'])
+            write_line(self.metadata_file, 'y_pixels', self.cfg.camera_parameters['y_pixels'])
+            write_line(self.metadata_file)
+            self.metadata_file.close()
+            logger.debug("write_metadata() ended")
+
+    def get_total_image_count(self,acq,acq_list):
+        total_image_count = 0
+        base_name = replace_with_underscores(acq['filename'])
+        for row in acq_list:
+            if replace_with_underscores(row['filename']) == base_name:
+                total_image_count += row.get_image_count()
+        return total_image_count
