@@ -63,7 +63,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             logger.info(msg)
             print(msg)
 
-    def prepare_acquisition(self, acq, acq_list):
+    def prepare_acquisition(self, acq, acq_list,abs_f_pos,abs_z_pos):
         self.folder = acq['folder']
         self.filename = replace_with_underscores(acq['filename'])
         self.path = os.path.realpath(self.folder+'/'+self.filename)
@@ -81,6 +81,9 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
         sensor_y = int(self.cfg.camera_parameters['y_pixels'])
         self.x_pixels = int(sensor_x / self.x_binning)
         self.y_pixels = int(sensor_y / self.y_binning)
+
+        self.abs_f_pos = abs_f_pos
+        self.abs_z_pos = abs_z_pos
 
         self.max_frame = acq.get_image_count()
         if self.file_extension == ".h5":
@@ -185,7 +188,7 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
                 image_filter = image_metadata_grp.create_dataset("filter",shape=(self.max_frame,),dtype=h5py.string_dtype(encoding="utf-8"))
                 image_etl_offset = image_metadata_grp.create_dataset("etl_offset",shape=(self.max_frame,),dtype="f8")
                 image_etl_amplitude = image_metadata_grp.create_dataset("etl_amplitude",shape=(self.max_frame,),dtype="f8")
-                image_timestamp = image_metadata_grp.create_dataset("timestamp",shape=(self.max_frame,),dtype="f8")
+                image_timestamp = image_metadata_grp.create_dataset("timestamp",shape=(self.max_frame,),dtype="i8")
                                 
                 self.simple_h5_writers[self.filename] = {
                             "file": f,
@@ -255,9 +258,9 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             imgmeta = writer["image_metadata"]
             imgmeta["x"][i] = acq["x_pos"]
             imgmeta["y"][i] = acq["y_pos"]
-            imgmeta["z"][i] = acq["z_start"] #TODO
+            imgmeta["z"][i] = self.abs_z_pos[self.cur_image_counter]
             imgmeta["theta"][i] = acq["rot"]
-            imgmeta["f"][i] =  1 #TODO
+            imgmeta["f"][i] = self.abs_f_pos[self.cur_image_counter]
             imgmeta["timestamp"][i] = timestamp
 
             imgmeta["sample_id"][i] = acq["sample_id"]

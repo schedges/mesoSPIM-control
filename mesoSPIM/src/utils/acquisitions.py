@@ -8,6 +8,7 @@ Helper classes for mesoSPIM acquisitions
 import indexed
 import os.path
 import logging
+import numpy as np
 logger = logging.getLogger(__name__)
 
 
@@ -186,6 +187,34 @@ class Acquisition(indexed.IndexedOrderedDict):
                 'f_abs': self['f_end'],
                 }
 
+    def get_f_and_z_steps(self,f_stage_min_step_um=0.25):
+        nSteps = self.get_image_count()
+
+        #Calculate focus steps
+        f_positions = np.linspace(self["f_start"],self["f_end"],num=nSteps,endpoint=True)
+        #Round each positions to the nearest step
+        f_positions = np.round(f_positions / f_stage_min_step_um) * f_stage_min_step_um
+        #Deal with floating point nonsense
+        f_positions = np.round(f_positions,5)
+        #Calculate deltas
+        f_steps = np.diff(f_positions)
+        #Following the last image, do nothing
+        f_steps = np.append(f_steps,0.)
+
+        #Calculate Z steps
+        if self["z_end"] > self["z_start"]:
+            z_steps = np.array([abs(self["z_step"]) for i in range(0,nSteps)])
+        else:
+            z_steps = np.array([-1*abs(self["z_step"]) for i in range(0,nSteps)])
+
+        return f_steps,z_steps
+    
+    def get_f_and_z_move_positions(self,f_steps,z_steps):
+        startpoint = self.get_startpoint()
+        z_positions = startpoint["z_abs"] + np.cumsum(np.concatenate(([0.],z_steps[:-1])))
+        f_positions = startpoint["f_abs"] + np.cumsum(np.concatenate(([0.],f_steps[:-1])))
+        return f_positions,z_positions
+        
     def get_focus_stepsize_generator(self, f_stage_min_step_um=0.25):
         ''''
         Provides a generator object to correct rounding errors for focus tracking acquisitions.

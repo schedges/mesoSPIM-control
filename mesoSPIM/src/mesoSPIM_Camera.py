@@ -151,7 +151,6 @@ class mesoSPIM_Camera(QtCore.QObject):
         '''
         logger.info('Camera: Preparing Image Series')
         self.stopflag = False
-        #self.image_writer.prepare_acquisition(acq, acq_list)
         self.max_frame = acq.get_image_count()
         self.processing_options_string = acq['processing']
         self.camera.initialize_image_series()

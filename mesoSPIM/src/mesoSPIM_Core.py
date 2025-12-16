@@ -9,6 +9,7 @@ import io
 import traceback
 from collections import deque
 import logging
+import numpy as np
 logger = logging.getLogger(__name__)
 
 '''PyQt5 Imports'''
@@ -138,6 +139,12 @@ class mesoSPIM_Core(QtCore.QObject):
         self.sig_move_relative_and_wait_until_done.connect(lambda sdict: self.serial_worker.move_relative(sdict, wait_until_done=True))
         self.sig_state_request.connect(self.serial_worker.state_request_handler)
         self.sig_state_request_and_wait_until_done.connect(lambda sdict: self.serial_worker.state_request_handler(sdict, wait_until_done=True))
+
+        #Holds precomputed moves/positions for an acquisition row
+        self.z_steps = []
+        self.f_steps = []
+        self.abs_z_positions = []
+        self.abs_f_positions = []
 
         ''' Start the threads '''
         self.camera_thread.start(QtCore.QThread.HighPriority)
@@ -784,20 +791,22 @@ class mesoSPIM_Core(QtCore.QObject):
 
         self.sig_state_request.emit({'etl_l_amplitude' : acq['etl_l_amplitude']})
         self.sig_state_request.emit({'etl_l_offset' : acq['etl_l_offset']})
-        self.f_step_generator = acq.get_focus_stepsize_generator()
+        self.f_steps,self.z_steps = acq.get_f_and_z_steps()
+        self.abs_f_positions,self.abs_z_positions = acq.get_f_and_z_move_positions(self.f_steps,self.z_steps)
 
         if self.TTL_mode_enabled_in_cfg is True:
-            ''' The relative movement has to be carried out once with the ASI-controller '''
-            self.move_relative(acq.get_delta_z_and_delta_f_dict(inverted=True))
+            first_nonzero_z = self.z_steps[np.flatnonzero(self.z_steps)[0]] if len(np.flatnonzero(self.z_steps)) > 0 else 0
+            first_nonzero_f = self.f_steps[np.flatnonzero(self.f_steps)[0]] if len(np.flatnonzero(self.f_steps)) > 0 else 0
+            self.move_relative({"f_rel":-1*first_nonzero_f,"z_rel":-1*first_nonzero_z})
             time.sleep(0.1)
-            self.move_relative(acq.get_delta_z_and_delta_f_dict())
+            self.move_relative({"f_rel":first_nonzero_f,"z_rel":first_nonzero_z})
             time.sleep(0.1)
             self.sig_state_request.emit({'ttl_movement_enabled_during_acq': True})
             time.sleep(0.05)
 
         self.sig_status_message.emit('Preparing camera: Allocating memory')
         self.sig_prepare_image_series.emit(acq, acq_list) # signal to the Camera
-        self.image_writer.prepare_acquisition(acq, acq_list)
+        self.image_writer.prepare_acquisition(acq, acq_list,self.abs_f_positions,self.abs_z_positions)
         self.prepare_image_series()
         self.sig_write_metadata.emit(acq, acq_list)
 
@@ -808,7 +817,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.image_acq_start_time = time.time()
         self.image_acq_start_time_string = time.strftime("%Y%m%d-%H%M%S")
 
-        move_dict = acq.get_delta_dict()
+        #move_dict = acq.get_delta_dict()
         laser = self.state['laser']
         self.laserenabler.enable(laser)
         laser_blanking = False if (hasattr(self.cfg, 'laser_blanking') and (self.cfg.laser_blanking in ('stack', 'stacks'))) else True
@@ -817,17 +826,18 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.close_image_series()
                 self.sig_end_image_series.emit(acq, acq_list)
                 self.sig_finished.emit()
+                self.abs_f_positions = []
+                self.abs_z_positions = []
+                self.z_steps = []
+                self.f_steps = []
                 break
             else:
                 self.snap_image_in_series(laser_blanking)
                 self.sig_add_images_to_image_series.emit(acq, acq_list)
-                ''' Get the current correct f_step'''
-                f_step = self.f_step_generator.__next__()
-                if f_step != 0:
-                    move_dict.update({'f_rel':f_step})
-                else: # clear key if no F-step is required
-                    move_dict.pop('f_rel', None)
 
+                ''' Get the current correct f_step and z step '''
+                move_dict = {"f_rel":self.f_steps[i],
+                             "z_rel":self.z_steps[i]}
                 logger.debug(f'move_dict: {move_dict}')
                 self.move_relative(move_dict)
 
@@ -863,6 +873,10 @@ class mesoSPIM_Core(QtCore.QObject):
         self.image_acq_end_time = time.time()
         self.image_acq_end_time_string = time.strftime("%Y%m%d-%H%M%S")
 
+        self.abs_f_positions = []
+        self.abs_z_positions = []
+        self.z_steps = []
+        self.f_steps = []
         self.close_shutters()
 
     def close_acquisition(self, acq, acq_list):
