@@ -168,7 +168,7 @@ class mesoSPIM_Camera(QtCore.QObject):
                 logger.debug(f'Adding images to series')
                 log_cpu_core(logger, msg='add_images_to_series()')
                 
-                images,timestamps = self.get_images_and_timestamps_in_series()
+                images,timestamps = self.camera.get_images_and_timestamps_in_series()
                 logger.debug(f'Got {len(images)} images')
                 self.frame_queue.extend(images) # push the list of images into queue
                 self.timestamp_queue.extend(timestamps)
