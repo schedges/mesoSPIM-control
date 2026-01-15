@@ -661,12 +661,16 @@ class mesoSPIM_Core(QtCore.QObject):
         for i in range(len(acq_list)):
             if not (self.cfg.stage_parameters['x_min'] <= acq_list[i]['x_pos'] - self.serial_worker.stage.int_x_pos_offset <= self.cfg.stage_parameters['x_max']):
                 unsafe_list.append(i)
+                print("X is BAD")
             elif not (self.cfg.stage_parameters['y_min'] <= acq_list[i]['y_pos'] - self.serial_worker.stage.int_y_pos_offset <= self.cfg.stage_parameters['y_max']):
                 unsafe_list.append(i)
+                print("Y is BAD")
             elif not (self.cfg.stage_parameters['z_min'] <= acq_list[i]['z_start'] - self.serial_worker.stage.int_z_pos_offset <= self.cfg.stage_parameters['z_max']):
                 unsafe_list.append(i)
+                print("ZSTART is BAD")
             elif not (self.cfg.stage_parameters['z_min'] <= acq_list[i]['z_end'] - self.serial_worker.stage.int_z_pos_offset <= self.cfg.stage_parameters['z_max']):
                 unsafe_list.append(i)
+                print("ZEND is BAD")
             else:
                 continue
         return unsafe_list

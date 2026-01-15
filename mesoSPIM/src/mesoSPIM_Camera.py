@@ -499,8 +499,6 @@ class mesoSPIM_HamamatsuOrcaQuest2(mesoSPIM_GenericCamera):
     def get_live_image(self):
         [frames, _] = self.hcam.getFrames()
         images = [np.reshape(aframe.getData(), (-1,self.x_pixels)) for aframe in frames]
-        for frame in frames:
-            print(frame.timestamp)
         return images
 
     def close_live_mode(self):
