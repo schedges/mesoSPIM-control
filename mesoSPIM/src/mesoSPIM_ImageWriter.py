@@ -358,9 +358,11 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
                     more_to_write = True
                     break
             if more_to_write == False:
-                writer = self.simple_h5_writers[self.filename]
+                key = replace_with_underscores(acq['filename'])
+                writer = self.simple_h5_writers[key]
                 writer["file"].flush()
                 writer["file"].close()
+                del self.simple_h5_writers[key]
             if idx==len(acq_list)-1:
                 self.simple_h5_writers.clear()
 

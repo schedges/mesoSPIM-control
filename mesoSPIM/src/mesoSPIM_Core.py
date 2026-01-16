@@ -53,6 +53,8 @@ class mesoSPIM_Core(QtCore.QObject):
     sig_add_images_to_image_series = QtCore.pyqtSignal(Acquisition, AcquisitionList)
     sig_end_image_series = QtCore.pyqtSignal(Acquisition, AcquisitionList)
     sig_write_metadata = QtCore.pyqtSignal(Acquisition, AcquisitionList)
+    sig_acq_status = QtCore.pyqtSignal(str)
+
     sig_prepare_live = QtCore.pyqtSignal()
     sig_get_live_image = QtCore.pyqtSignal()
     sig_get_snap_image = QtCore.pyqtSignal(bool)
@@ -116,6 +118,7 @@ class mesoSPIM_Core(QtCore.QObject):
         self.camera_worker.sig_overheat_stop.connect(self.stop)
         self.sig_end_image_series.connect(self.camera_worker.end_image_series, type=QtCore.Qt.BlockingQueuedConnection)
         self.sig_stop_aquisition.connect(self.camera_worker.stop, type=QtCore.Qt.QueuedConnection)
+        self.sig_acq_status.connect(self.parent.acquisition_manager_window.AcqStatusLabel.setText)
         
         self.image_writer_thread = QtCore.QThread()
         self.image_writer = mesoSPIM_ImageWriter(self, self.frame_queue, self.timestamp_queue)
@@ -796,17 +799,26 @@ class mesoSPIM_Core(QtCore.QObject):
         self.sig_state_request.emit({'etl_l_amplitude' : acq['etl_l_amplitude']})
         self.sig_state_request.emit({'etl_l_offset' : acq['etl_l_offset']})
         self.f_steps,self.z_steps = acq.get_f_and_z_steps()
-        self.abs_f_positions,self.abs_z_positions = acq.get_f_and_z_move_positions(self.f_steps,self.z_steps)
 
         if self.TTL_mode_enabled_in_cfg is True:
             first_nonzero_z = self.z_steps[np.flatnonzero(self.z_steps)[0]] if len(np.flatnonzero(self.z_steps)) > 0 else 0
             first_nonzero_f = self.f_steps[np.flatnonzero(self.f_steps)[0]] if len(np.flatnonzero(self.f_steps)) > 0 else 0
-            self.move_relative({"f_rel":-1*first_nonzero_f,"z_rel":-1*first_nonzero_z})
+            
+            self.move_relative({"x_rel":0,"y_rel":0,"z_rel":-1*first_nonzero_z,"f_rel":-1*first_nonzero_f,"theta_rel":0})
             time.sleep(0.1)
-            self.move_relative({"f_rel":first_nonzero_f,"z_rel":first_nonzero_z})
+            self.move_relative({"x_rel":0,"y_rel":0,"z_rel":first_nonzero_z,"f_rel":first_nonzero_f,"theta_rel":0})
             time.sleep(0.1)
             self.sig_state_request.emit({'ttl_movement_enabled_during_acq': True})
             time.sleep(0.05)
+
+        #Get absolute positions for tracking/writing
+        self.serial_worker.stage.report_position()
+        abs_pos_start = self.serial_worker.stage.state['position_absolute']
+        self.abs_z_positions = [abs_pos_start['z_pos']]
+        self.abs_f_positions = [abs_pos_start['f_pos']]
+        for i in range(0,len(self.f_steps)-1):
+            self.abs_z_positions.append(self.abs_z_positions[-1]+self.z_steps[i])
+            self.abs_f_positions.append(self.abs_f_positions[-1]+self.f_steps[i])
 
         self.sig_status_message.emit('Preparing camera: Allocating memory')
         self.sig_prepare_image_series.emit(acq, acq_list) # signal to the Camera
@@ -825,6 +837,7 @@ class mesoSPIM_Core(QtCore.QObject):
         laser = self.state['laser']
         self.laserenabler.enable(laser)
         laser_blanking = False if (hasattr(self.cfg, 'laser_blanking') and (self.cfg.laser_blanking in ('stack', 'stacks'))) else True
+        
         for i in range(steps):
             if self.stopflag is True:
                 self.close_image_series()
@@ -839,9 +852,14 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.snap_image_in_series(laser_blanking)
                 self.sig_add_images_to_image_series.emit(acq, acq_list)
 
+                #Update current parameters
+                f_abs = self.abs_f_positions[i] if i < len(self.abs_f_positions) else None
+                z_abs = self.abs_z_positions[i] if i < len(self.abs_z_positions) else None
+
+                self.sig_acq_status.emit(f"Displayed Slice {i+1}/{steps} | Z: {z_abs}  F: {f_abs}")
+                            
                 ''' Get the current correct f_step and z step '''
-                move_dict = {"f_rel":self.f_steps[i],
-                             "z_rel":self.z_steps[i]}
+                move_dict = {"x_rel":0,"y_rel":0,"z_rel":self.z_steps[i],"f_rel":self.f_steps[i],"theta_rel":0}
                 logger.debug(f'move_dict: {move_dict}')
                 self.move_relative(move_dict)
 

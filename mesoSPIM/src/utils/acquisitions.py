@@ -198,8 +198,6 @@ class Acquisition(indexed.IndexedOrderedDict):
         f_positions = np.round(f_positions,5)
         #Calculate deltas
         f_steps = np.diff(f_positions)
-        #Following the last image, do nothing
-        f_steps = np.append(f_steps,0.)
 
         #Calculate Z steps
         if self["z_end"] > self["z_start"]:
@@ -207,48 +205,11 @@ class Acquisition(indexed.IndexedOrderedDict):
         else:
             z_steps = np.array([-1*abs(self["z_step"]) for i in range(0,nSteps)])
 
+        #Following the last image, do nothing
+        f_steps = np.append(f_steps,0.)
+        z_steps[-1]=0
+
         return f_steps,z_steps
-    
-    def get_f_and_z_move_positions(self,f_steps,z_steps):
-        startpoint = self.get_startpoint()
-        z_positions = startpoint["z_abs"] + np.cumsum(np.concatenate(([0.],z_steps[:-1])))
-        f_positions = startpoint["f_abs"] + np.cumsum(np.concatenate(([0.],f_steps[:-1])))
-        return f_positions,z_positions
-        
-    def get_focus_stepsize_generator(self, f_stage_min_step_um=0.25):
-        ''''
-        Provides a generator object to correct rounding errors for focus tracking acquisitions.
-
-        The focus stage has to travel a shorter distance than the sample z-stage, ideally only
-        a fraction of the z-step size. However, due to the limited minimum step size of the focus stage,
-        rounding errors can accumulate over thousands of steps.
-
-        Therefore, the generator tracks the rounding error and applies correcting steps here and there
-        to minimize the error.
-
-        This assumes a minimum step size of around 0.25 micron that the focus stage is capable of.
-
-        This method contains lots of round functions to keep residual rounding errors at bay.
-        '''
-        steps = self.get_image_count()
-        f_step = abs((self['f_end'] - self['f_start'])/steps)
-        logger.debug(f"Focus interpolation: f_start, f_end, f_step, steps: {self['f_start'], self['f_end'], f_step, steps}")
-        feasible_f_step = max(f_stage_min_step_um * (f_step // f_stage_min_step_um),
-                              f_stage_min_step_um)  # Round to nearest multiple of f_stage_min_step_um
-        if self['f_end'] < self['f_start']:
-            f_step = -f_step
-            feasible_f_step = -feasible_f_step
-
-        expected_focus = 0
-        focus = 0
-        for i in range(steps):
-            focus_error = round(expected_focus - focus, 5)
-            new_step = round(focus_error / f_stage_min_step_um) * f_stage_min_step_um + feasible_f_step # this can be zero, and it is correct
-            yield new_step
-            logger.debug(f"Relative focus: new_step, actual, expected, error: {new_step, focus, expected_focus, focus_error}, um")
-            focus += new_step
-            focus = round(focus, 5)
-            expected_focus += f_step
 
 
 class AcquisitionList(list):

@@ -455,7 +455,7 @@
           </font>
          </property>
          <property name="text">
-          <string>Displayed: -/- | X: - Y: - Z: - F: -</string>
+          <string>Displayed: -/- | Z: - F: -</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignLeft|Qt::AlignVCenter</set>
