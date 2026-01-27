@@ -534,6 +534,7 @@ class mesoSPIM_Core(QtCore.QObject):
             self.laserenabler.disable_all()
         self.waveformer.stop_tasks()
         self.waveformer.close_tasks()
+        
 
     def prepare_image_series(self):
         '''Prepares an image series without waveform update'''
