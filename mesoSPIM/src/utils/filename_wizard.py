@@ -169,7 +169,8 @@ class FilenameWizardWelcomePage(QtWidgets.QWizardPage):
         self.SaveAsComboBoxLabel = QtWidgets.QLabel('Save as:')
         self.SaveAsComboBox = QtWidgets.QComboBox()
         self.SaveAsComboBox.addItems([self.raw_string, self.tiff_string, self.bigtiff_string, self.single_hdf5_string,self.simple_hdf5_string])
-        self.SaveAsComboBox.setCurrentIndex(3)
+        self.SaveAsComboBox.setCurrentIndex(4)
+        #0 - raw, 1 - tiff, 2 - bigtiff, 3 - bdv.h5, 4 - simple h5
 
         self.registerField('SaveAs', self.SaveAsComboBox, 'currentIndex')
         
