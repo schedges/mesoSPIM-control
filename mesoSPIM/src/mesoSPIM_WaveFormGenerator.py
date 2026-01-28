@@ -159,7 +159,17 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
 
     def calculate_samples(self):
         samplerate, sweeptime = self.state.get_parameter_list(['samplerate', 'sweeptime'])
-        self.samples = int(samplerate*sweeptime)
+        #self.samples = int(samplerate*sweeptime)
+        samples = int(round(samplerate * sweeptime))
+        
+        num_lasers = len(self.cfg.laserdict)
+        num_chans = 4 + num_lasers  # galvo_l, galvo_r, etl_l, etl_r + all laser AO lines
+
+        if (samples * num_chans) % 2 != 0:
+            samples += 1
+
+        self.samples = samples
+
 
     def create_etl_waveforms(self):
         samplerate, sweeptime = self.state.get_parameter_list(['samplerate', 'sweeptime'])
@@ -174,7 +184,8 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
                                                 rise = etl_l_ramp_rising,
                                                 fall = etl_l_ramp_falling,
                                                 amplitude = etl_l_amplitude,
-                                                offset = etl_l_offset)
+                                                offset = etl_l_offset,
+                                                samples = self.samples)
 
         self.etl_r_waveform = tunable_lens_ramp(samplerate = samplerate,
                                                 sweeptime = sweeptime,
@@ -182,7 +193,8 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
                                                 rise = etl_r_ramp_rising,
                                                 fall = etl_r_ramp_falling,
                                                 amplitude = etl_r_amplitude,
-                                                offset = etl_r_offset)
+                                                offset = etl_r_offset,
+                                                samples = self.samples)
         # freeze AO channel which is not in use, to reduce heating and increase ETL lifetime
         if self.state['shutterconfig'] == 'Left':
             self.etl_r_waveform[:] = etl_r_offset
@@ -212,7 +224,8 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
                                          amplitude = galvo_l_amplitude,
                                          offset = galvo_l_offset,
                                          dutycycle = galvo_l_duty_cycle,
-                                         phase = galvo_l_phase)
+                                         phase = galvo_l_phase,
+                                         samples = self.samples)
 
         self.galvo_r_waveform = sawtooth(samplerate = samplerate,
                                          sweeptime = sweeptime,
@@ -220,7 +233,8 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
                                          amplitude = galvo_r_amplitude,
                                          offset = galvo_r_offset,
                                          dutycycle = galvo_r_duty_cycle,
-                                         phase = galvo_r_phase)
+                                         phase = galvo_r_phase,
+                                         samples = self.samples)
 
         # freeze AO channel which is not in use, to reduce heating and increase galvo lifetime
         if self.state['shutterconfig'] == 'Left':
@@ -251,7 +265,8 @@ class mesoSPIM_WaveFormGenerator(QtCore.QObject):
                                                     delay = laser_l_delay,
                                                     pulsewidth = laser_l_pulse,
                                                     amplitude = laser_voltage,
-                                                    offset = 0)
+                                                    offset = 0,
+                                                    samples = self.samples)
 
         '''The key: replace the waveform in the waveform list with this new template'''
         assert sorted(list(self.cfg.laserdict.keys())) == list(self.cfg.laserdict.keys()), f"Error: laserdict keys in config file must be alphanumerically sorted: {self.cfg.laserdict.keys()}"

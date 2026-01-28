@@ -20,7 +20,8 @@ def single_pulse(
     delay=10,           # in percent
     pulsewidth=1,       # in percent
     amplitude=0,        # in volts
-    offset=0            # in volts
+    offset=0,           # in volts
+    samples = None
     ):
 
     '''
@@ -44,7 +45,9 @@ def single_pulse(
     '''
 
     # get an integer number of samples
-    samples = int(np.floor(np.multiply(samplerate, sweeptime)))
+    if samples is None:
+        samples = int(np.floor(np.multiply(samplerate, sweeptime)))
+
     # create an array just containing the offset voltage:
     array = np.zeros((samples))+offset
 
@@ -63,7 +66,8 @@ def tunable_lens_ramp(
     rise = 85,              # in percent
     fall = 2.5,             # in percent
     amplitude = 0,          # in volts
-    offset = 0              # in volts
+    offset = 0,             # in volts
+    samples = None
     ):
 
     '''
@@ -87,8 +91,11 @@ def tunable_lens_ramp(
     '''
     sum_perc = delay + rise + fall
     assert sum_perc <= 100, ValueError(f"ETL Delay, Ramp rising and Ramp falling % amount to {sum_perc} %")
+
     # get an integer number of samples
-    samples = int(np.floor(np.multiply(samplerate, sweeptime)))
+    if samples is None:
+        samples = int(np.floor(np.multiply(samplerate, sweeptime)))
+
     # create an array just containing the negative amplitude voltage:
     array = np.zeros(samples)-amplitude + offset
 
@@ -116,8 +123,9 @@ def sawtooth(
     frequency = 10,         # in Hz
     amplitude = 0,          # in V
     offset = 0,             # in V
-    dutycycle = 50,          # dutycycle in percent
-    phase = np.pi/2.0,          # in rad
+    dutycycle = 50,         # dutycycle in percent
+    phase = np.pi/2.0,      # in rad
+    samples = None
     ):
     '''
     Returns a numpy array with a sawtooth function
@@ -127,8 +135,9 @@ def sawtooth(
     Example:
     galvosignal =  sawtooth(100000, 0.4, 199, 3.67, 0, 50, np.pi)
     '''
+    if samples is None:
+        samples =  int(samplerate*sweeptime)
 
-    samples =  int(samplerate*sweeptime)
     dutycycle = dutycycle/100       # the signal.sawtooth width parameter has to be between 0 and 1
     t = np.linspace(0, sweeptime, samples)
     # Using the signal toolbox from scipy for the sawtooth:
@@ -146,12 +155,15 @@ def square(
     offset = 0,             # in V
     dutycycle = 50,         # dutycycle in percent
     phase = np.pi,          # in rad
+    samples = None
     ):
     """
     Returns a numpy array with a rectangular waveform
     """
 
-    samples =  int(samplerate*sweeptime)
+    if samples is None:
+        samples =  int(samplerate*sweeptime)
+        
     dutycycle = dutycycle/100       # the signal.square duty parameter has to be between 0 and 1
     t = np.linspace(0, sweeptime, samples)
 
