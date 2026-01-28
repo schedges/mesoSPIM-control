@@ -1,0 +1,764 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mesoSPIM.src.mesoSPIM_Camera &mdash; mesoSPIM Control 1.11.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=c8897f99"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            mesoSPIM Control
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">mesoSPIM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">mesoSPIM Control</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">mesoSPIM.src.mesoSPIM_Camera</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mesoSPIM.src.mesoSPIM_Camera</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">mesoSPIM Camera class, intended to run in its own thread</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">PyQt5</span><span class="w"> </span><span class="kn">import</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtWidgets</span><span class="p">,</span> <span class="n">QtGui</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">try:</span>
+<span class="sd">    from .devices.cameras.hamamatsu import hamamatsu_camera as cam</span>
+<span class="sd">except:</span>
+<span class="sd">    logger.info(&#39;Error: Hamamatsu camera could not be imported&#39;)</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.acquisitions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AcquisitionList</span><span class="p">,</span> <span class="n">Acquisition</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.utility_functions</span><span class="w"> </span><span class="kn">import</span> <span class="n">log_cpu_core</span>
+
+
+<div class="viewcode-block" id="mesoSPIM_Camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">mesoSPIM_Camera</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;Top-level class for all cameras&#39;&#39;&#39;</span>
+    <span class="n">sig_camera_frame</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+    <span class="n">sig_write_images</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="n">Acquisition</span><span class="p">,</span> <span class="n">AcquisitionList</span><span class="p">)</span>
+    <span class="n">sig_finished</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+    <span class="n">sig_update_gui_from_state</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+    <span class="n">sig_status_message</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">sig_temperature</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">sig_overheat_stop</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">frame_queue</span><span class="p">,</span> <span class="n">frame_queue_display</span><span class="p">,</span><span class="n">timestamp_queue</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parent</span> <span class="c1"># a mesoSPIM_Core() object</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue</span> <span class="o">=</span> <span class="n">frame_queue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue_display</span> <span class="o">=</span> <span class="n">frame_queue_display</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timestamp_queue</span> <span class="o">=</span> <span class="n">timestamp_queue</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">state</span> <span class="c1"># a mesoSPIM_StateSingleton() object</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stopflag</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;x_pixels&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;y_pixels&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixel_size_in_microns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;x_pixel_size_in_microns&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixel_size_in_microns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;y_pixel_size_in_microns&#39;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;binning&#39;</span><span class="p">]</span> <span class="c1"># Should return a string in the form &#39;2x4&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_line_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_line_interval&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_exposure_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_exposure_time&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_poll_temperature</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_live_subsampling</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_display_live_subsampling&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_acquisition_subsampling</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_display_acquisition_subsampling&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;camera_display_temporal_subsampling&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_temporal_subsampling</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_display_temporal_subsampling&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_temporal_subsampling</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Camera display temporal subsampling factor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">camera_display_temporal_subsampling</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Wiring signals &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_state_request</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_request_handler</span><span class="p">)</span> <span class="c1"># from mesoSPIM_Core() to mesoSPIM_Camera()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_prepare_image_series</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prepare_image_series</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">BlockingQueuedConnection</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_add_images_to_image_series</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">add_images_to_series</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">QueuedConnection</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_prepare_live</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prepare_live</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">BlockingQueuedConnection</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_get_live_image</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_live_image</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_get_snap_image</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">snap_image</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">sig_end_live</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_live</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">BlockingQueuedConnection</span><span class="p">)</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Set up the actual camera &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera</span> <span class="o">==</span> <span class="s1">&#39;HamamatsuOrcaQuest2&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera</span> <span class="o">=</span> <span class="n">mesoSPIM_HamamatsuOrcaQuest2</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera</span> <span class="o">==</span> <span class="s1">&#39;DemoCamera&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera</span> <span class="o">=</span> <span class="n">mesoSPIM_DemoCamera</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">open_camera</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Camera initialized&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">close_camera</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">state_request_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;The request handling is done with exec() to write fewer lines of code. &#39;&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="nb">dict</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;camera_exposure_time&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;camera_line_interval&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;camera_display_live_subsampling&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;camera_display_acquisition_subsampling&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;camera_binning&#39;</span><span class="p">):</span>
+                <span class="n">exec</span><span class="p">(</span><span class="s1">&#39;self.set_&#39;</span><span class="o">+</span><span class="n">key</span><span class="o">+</span><span class="s1">&#39;(value)&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;state&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="s1">&#39;live&#39;</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Thread name during live: &#39;</span><span class="o">+</span> <span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="o">.</span><span class="n">currentThread</span><span class="p">()</span><span class="o">.</span><span class="n">objectName</span><span class="p">()))</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Stops acquisition &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stopflag</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="mesoSPIM_Camera.set_camera_exposure_time">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.set_camera_exposure_time">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_exposure_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Sets the exposure time in seconds</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            time (float): exposure time to set</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">set_exposure_time</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_exposure_time</span> <span class="o">=</span> <span class="n">time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_exposure_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_Camera.set_camera_line_interval">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.set_camera_line_interval">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_line_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Sets the line interval in seconds</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            time (float): interval time to set</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">set_line_interval</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_line_interval</span> <span class="o">=</span> <span class="n">time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_line_interval&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_Camera.set_camera_display_live_subsampling">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.set_camera_display_live_subsampling">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_display_live_subsampling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">factor</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_live_subsampling</span> <span class="o">=</span> <span class="n">factor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_display_live_subsampling&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">factor</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_Camera.set_camera_display_acquisition_subsampling">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.set_camera_display_acquisition_subsampling">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_display_acquisition_subsampling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">factor</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_acquisition_subsampling</span> <span class="o">=</span> <span class="n">factor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_display_acquisition_subsampling&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">factor</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_Camera.set_camera_binning">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.set_camera_binning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_binning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Setting camera binning: &#39;</span><span class="o">+</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">set_binning</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_binning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span></div>
+
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">(</span><span class="n">Acquisition</span><span class="p">,</span> <span class="n">AcquisitionList</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">prepare_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acq</span><span class="p">,</span> <span class="n">acq_list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Row is a row in a AcquisitionList</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Camera: Preparing Image Series&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stopflag</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_frame</span> <span class="o">=</span> <span class="n">acq</span><span class="o">.</span><span class="n">get_image_count</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">processing_options_string</span> <span class="o">=</span> <span class="n">acq</span><span class="p">[</span><span class="s1">&#39;processing&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">initialize_image_series</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Camera: Finished Preparing Image Series&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">(</span><span class="n">Acquisition</span><span class="p">,</span> <span class="n">AcquisitionList</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_images_to_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acq</span><span class="p">,</span> <span class="n">acq_list</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Thread name during add images: &#39;</span><span class="o">+</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="o">.</span><span class="n">currentThread</span><span class="p">()</span><span class="o">.</span><span class="n">objectName</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stopflag</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_frame</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Adding images to series&#39;</span><span class="p">)</span>
+                <span class="n">log_cpu_core</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s1">&#39;add_images_to_series()&#39;</span><span class="p">)</span>
+                
+                <span class="n">images</span><span class="p">,</span><span class="n">timestamps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">get_images_and_timestamps_in_series</span><span class="p">()</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">)</span><span class="si">}</span><span class="s1"> images&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">images</span><span class="p">)</span> <span class="c1"># push the list of images into queue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">timestamp_queue</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">timestamps</span><span class="p">)</span>
+
+                <span class="c1"># show an image every other timepoint to prevent GUI freezing in long acquisitions</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera_display_temporal_subsampling</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue_display</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">rot90</span><span class="p">(</span><span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="c1"># push the first image into the display queue</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sig_camera_frame</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span> <span class="c1"># signal the GUI to update the display</span>
+                <span class="c1"># tell the image writer to write the images in queue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sig_write_images</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">acq</span><span class="p">,</span> <span class="n">acq_list</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">)</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">(</span><span class="n">Acquisition</span><span class="p">,</span> <span class="n">AcquisitionList</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">end_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acq</span><span class="p">,</span> <span class="n">acq_list</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;end_image_series() started&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">close_image_series</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;self.camera.close_image_series()&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Camera: Image Series could not be closed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">framerate</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cur_image</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_time</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Camera: Framerate: </span><span class="si">{</span><span class="n">framerate</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sig_finished</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">snap_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">write_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;&quot;Snap an image and display it&quot;&quot;&quot;</span>
+        <span class="n">log_cpu_core</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s1">&#39;snap_image()&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">raw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">get_image</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;snap_image(): get_image() raised </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        
+        <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;snap_image(): get_image() raised </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">image</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rot90</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue_display</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">image</span><span class="p">)</span> <span class="c1"># push the first image into the display queue</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Image appended to display queue: len(frame_queue_display)=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame_queue_display</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sig_camera_frame</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span> <span class="c1"># signal the GUI to update the display</span>
+        <span class="k">if</span> <span class="n">write_flag</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">image_writer</span><span class="o">.</span><span class="n">write_snap_image</span><span class="p">(</span><span class="n">image</span><span class="p">)</span> <span class="c1"># Dangerous, not thread safe!</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">prepare_live</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">initialize_live_mode</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">live_image_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Camera: Preparing Live Mode&#39;</span><span class="p">)</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_live_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">get_live_image</span><span class="p">()</span>
+        <span class="n">log_cpu_core</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s1">&#39;get_live_image()&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">image</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frame_queue_display</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">rot90</span><span class="p">(</span><span class="n">image</span><span class="p">))</span> <span class="c1"># push the first image into the display queue</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sig_camera_frame</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span> <span class="c1"># signal the GUI to update the display</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">live_image_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">end_live</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">close_live_mode</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">framerate</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">live_image_count</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_time</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Camera: Finished Live Mode: Framerate: </span><span class="si">{</span><span class="n">framerate</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">start_temperature_polling</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_poll_temperature</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="o">.</span><span class="n">singleShot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_temperature_tick</span><span class="p">)</span>
+
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stop_temperature_polling</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_poll_temperature</span> <span class="o">=</span> <span class="kc">False</span>
+    
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_temperature_tick</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_poll_temperature</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">single_temperature_read</span><span class="p">()</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="o">.</span><span class="n">singleShot</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_temperature_tick</span><span class="p">)</span>
+    
+    <span class="nd">@QtCore</span><span class="o">.</span><span class="n">pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">single_temperature_read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="p">,</span> <span class="s2">&quot;read_temperature&quot;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera</span><span class="o">.</span><span class="n">read_temperature</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">temp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sig_temperature</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+                
+                <span class="k">if</span> <span class="n">temp</span> <span class="o">&gt;</span> <span class="mi">40</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sig_status_message</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="s2">&quot;Camera above 40 C, stopping acquisiton!&quot;</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;OVERHEAT! Camera temp is </span><span class="si">{</span><span class="n">temp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sig_overheat_stop</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sig_status_message</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Temperature read failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="mesoSPIM_Camera.display_warning">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_Camera.display_warning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">display_warning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">string</span><span class="p">):</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">PyQt5</span><span class="w"> </span><span class="kn">import</span> <span class="n">QtWidgets</span>
+        <span class="n">warning</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span><span class="s1">&#39;mesoSPIM Warning&#39;</span><span class="p">,</span> <span class="n">string</span><span class="p">,</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Ok</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">mesoSPIM_GenericCamera</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39; Generic mesoSPIM camera class meant for subclassing.&#39;&#39;&#39;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parent</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">cfg</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">state</span> <span class="c1"># the mesoSPIM_StateSingleton() object</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">stopflag</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;x_pixels&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;y_pixels&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixel_size_in_microns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;x_pixel_size_in_microns&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixel_size_in_microns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;y_pixel_size_in_microns&#39;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;binning&#39;</span><span class="p">]</span> <span class="c1"># Should return a string in the form &#39;2x4&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_line_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_line_interval&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_exposure_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">startup</span><span class="p">[</span><span class="s1">&#39;camera_exposure_time&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.open_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.open_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">open_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.close_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.close_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.set_exposure_time">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.set_exposure_time">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_exposure_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_exposure_time</span> <span class="o">=</span> <span class="n">time</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.set_line_interval">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.set_line_interval">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_line_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.set_binning">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.set_binning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_binning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">binning_string</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.initialize_image_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.initialize_image_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.get_images_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.get_images_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;Should return a single numpy array&#39;&#39;&#39;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.get_images_and_timestamps_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.get_images_and_timestamps_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_and_timestamps_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;Should return a numpy array and a list of corresponding timestamps&#39;&#39;&#39;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.close_image_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.close_image_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.get_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.get_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;Should return a single numpy array&#39;&#39;&#39;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.initialize_live_mode">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.initialize_live_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize_live_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.get_live_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.get_live_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_live_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_GenericCamera.close_live_mode">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_GenericCamera.close_live_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_live_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+</div>
+
+
+
+
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">mesoSPIM_DemoCamera</span><span class="p">(</span><span class="n">mesoSPIM_GenericCamera</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">line</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">6</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line</span> <span class="o">=</span> <span class="mi">400</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">line</span><span class="p">)</span><span class="o">+</span><span class="mi">1200</span>
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.open_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.open_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">open_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Initialized Demo Camera&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.close_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.close_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Closed Demo Camera&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.set_binning">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.set_binning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_binning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">binning_string</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">binning_string</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Changing the number of pixels also affects the random image, so we need to update self.line &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">6</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line</span> <span class="o">=</span> <span class="mi">400</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">line</span><span class="p">)</span><span class="o">+</span><span class="mi">1200</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_binning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;x&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_random_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">line</span><span class="p">,</span> <span class="mi">4</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint16&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">+=</span> <span class="mi">20</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.get_images_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.get_images_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_random_image</span><span class="p">()]</span></div>
+
+    
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.get_images_and_timestamps_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.get_images_and_timestamps_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_and_timestamps_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_random_image</span><span class="p">()],[</span><span class="n">time</span><span class="o">.</span><span class="n">monotonic_ns</span><span class="p">()]</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.get_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.get_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_random_image</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_DemoCamera.get_live_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_DemoCamera.get_live_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_live_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_random_image</span><span class="p">()]</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">mesoSPIM_HamamatsuOrcaQuest2</span><span class="p">(</span><span class="n">mesoSPIM_GenericCamera</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.open_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.open_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">open_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Hamamatsu-specific code &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">camera_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;camera_id&#39;</span><span class="p">]</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.devices.cameras.hamamatsu</span><span class="w"> </span><span class="kn">import</span> <span class="n">hamamatsu_camera</span> <span class="k">as</span> <span class="n">cam</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span> <span class="o">=</span> <span class="n">cam</span><span class="o">.</span><span class="n">HamamatsuCameraMR</span><span class="p">(</span><span class="n">camera_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">camera_id</span><span class="p">)</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Debbuging information &#39;&#39;&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Initialized Hamamatsu camera model: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getModelInfo</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">camera_id</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Ideally, the Hamamatsu Camera properties should be set in this order &#39;&#39;&#39;</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; mesoSPIM mode parameters &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;sensor_mode&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;sensor_mode&#39;</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;defect_correct_mode&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;defect_correct_mode&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;binning&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;binning&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;readout_speed&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;readout_speed&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;readout_speed&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No readout speed specified in the configuration file. Using default value.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;sensor_cooler&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s2">&quot;sensor_cooler&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">display_warning</span><span class="p">(</span><span class="s2">&quot;Camera cooling set to ON — Ensure air or water cooling is turned on!&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s2">&quot;sensor_cooler&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">display_warning</span><span class="p">(</span><span class="s2">&quot;Camera cooling set to MAX — Ensure water cooling is turned on!&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">display_warning</span><span class="p">(</span><span class="s2">&quot;Camera cooling set to OFF - performance will be poor&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;sensor_cooler&quot;</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s2">&quot;sensor_cooler&quot;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No cooling mode specified in the configuration file. Using default value.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;sensor_cooler&quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">display_warning</span><span class="p">(</span><span class="s2">&quot;Camera cooling set to OFF - performance will be poor&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;trigger_active&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;trigger_active&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;trigger_mode&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;trigger_mode&#39;</span><span class="p">])</span> <span class="c1"># it is unclear if this is the external lightsheeet mode - how to check this?</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;trigger_polarity&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;trigger_polarity&#39;</span><span class="p">])</span> <span class="c1"># positive pulse</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;trigger_source&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">camera_parameters</span><span class="p">[</span><span class="s1">&#39;trigger_source&#39;</span><span class="p">])</span> <span class="c1"># external</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;internal_line_interval&quot;</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">camera_line_interval</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;exposure_time&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">camera_exposure_time</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">print_camera_properties</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="s1">&#39;Camera properties after initialization&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.print_camera_properties">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.print_camera_properties">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">print_camera_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Camera properties&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Camera properties &#39;&#39;&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="n">props</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getProperties</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">id_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">props</span><span class="o">.</span><span class="n">keys</span><span class="p">())):</span>
+            <span class="p">[</span><span class="n">p_value</span><span class="p">,</span> <span class="n">p_type</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getPropertyValue</span><span class="p">(</span><span class="n">id_name</span><span class="p">)</span>
+            <span class="n">p_rw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getPropertyRW</span><span class="p">(</span><span class="n">id_name</span><span class="p">)</span>
+            <span class="n">read_write</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="k">if</span> <span class="n">p_rw</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">read_write</span> <span class="o">+=</span> <span class="s2">&quot;read&quot;</span>
+            <span class="k">if</span> <span class="n">p_rw</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">read_write</span> <span class="o">+=</span> <span class="s2">&quot;, write&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> ) </span><span class="si">{</span><span class="n">id_name</span><span class="si">}</span><span class="s2">, = </span><span class="si">{</span><span class="n">p_value</span><span class="si">}</span><span class="s2">  type is: </span><span class="si">{</span><span class="n">p_type</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">read_write</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">text_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getPropertyText</span><span class="p">(</span><span class="n">id_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text_values</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;          option / value&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">text_values</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">text_values</span><span class="o">.</span><span class="n">get</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;         </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">text_values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.close_camera">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.close_camera">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_camera</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.set_camera_sensor_mode">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.set_camera_sensor_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_camera_sensor_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;Area&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;sensor_mode&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ASLM&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;sensor_mode&quot;</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Camera mode not supported&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.set_exposure_time">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.set_exposure_time">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_exposure_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;exposure_time&quot;</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.set_line_interval">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.set_line_interval">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_line_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;internal_line_interval&quot;</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">camera_line_interval</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.set_binning">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.set_binning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_binning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">binningstring</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setPropertyValue</span><span class="p">(</span><span class="s2">&quot;binning&quot;</span><span class="p">,</span> <span class="n">binningstring</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">binningstring</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">binningstring</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_pixels</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;camera_binning&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_binning</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;x&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_binning</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.initialize_image_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.initialize_image_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">startAcquisition</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.get_images_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.get_images_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="p">[</span><span class="n">frames</span><span class="p">,</span> <span class="n">_</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getFrames</span><span class="p">()</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">aframe</span><span class="o">.</span><span class="n">getData</span><span class="p">(),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">))</span> <span class="k">for</span> <span class="n">aframe</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">images</span></div>
+
+    
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.get_images_and_timestamps_in_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.get_images_and_timestamps_in_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_images_and_timestamps_in_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="p">[</span><span class="n">frames</span><span class="p">,</span> <span class="n">_</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getFrames</span><span class="p">()</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">aframe</span><span class="o">.</span><span class="n">getData</span><span class="p">(),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">))</span> <span class="k">for</span> <span class="n">aframe</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">]</span>
+        <span class="n">timestamps</span> <span class="o">=</span> <span class="p">[</span><span class="n">aframe</span><span class="o">.</span><span class="n">timestamp</span> <span class="k">for</span> <span class="n">aframe</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">images</span><span class="p">,</span><span class="n">timestamps</span></div>
+
+    
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.close_image_series">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.close_image_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_image_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">stopAcquisition</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.get_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.get_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="p">[</span><span class="n">frames</span><span class="p">,</span> <span class="n">_</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getFrames</span><span class="p">()</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">aframe</span><span class="o">.</span><span class="n">getData</span><span class="p">(),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">))</span> <span class="k">for</span> <span class="n">aframe</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.initialize_live_mode">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.initialize_live_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize_live_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">setACQMode</span><span class="p">(</span><span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;run_till_abort&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">startAcquisition</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.get_live_image">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.get_live_image">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_live_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="p">[</span><span class="n">frames</span><span class="p">,</span> <span class="n">_</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getFrames</span><span class="p">()</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">aframe</span><span class="o">.</span><span class="n">getData</span><span class="p">(),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">x_pixels</span><span class="p">))</span> <span class="k">for</span> <span class="n">aframe</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">images</span></div>
+
+
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.close_live_mode">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.close_live_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close_live_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">stopAcquisition</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="mesoSPIM_HamamatsuOrcaQuest2.read_temperature">
+<a class="viewcode-back" href="../../../api/mesoSPIM.src.html#mesoSPIM.src.mesoSPIM_Camera.mesoSPIM_HamamatsuOrcaQuest2.read_temperature">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_temperature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">temp</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hcam</span><span class="o">.</span><span class="n">getPropertyValue</span><span class="p">(</span><span class="s1">&#39;sensor_temperature&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">temp</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sig_status_message</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Temperature read failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_poll_temperature</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright mesoSPIM team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
