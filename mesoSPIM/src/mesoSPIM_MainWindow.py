@@ -757,11 +757,24 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
     def zero_left_etl(self):
         ''' Zeros the amplitude of the left ETL for faster alignment '''
         if self.ZeroLeftETLButton.isChecked():
+            #Store current values
             self.ETL_L_amp_backup = self.LeftETLAmplitudeSpinBox.value()
+            self.ETL_L_offset_backup = self.LeftETLOffsetSpinBox.value()
+            #For consistency, we will approach the ETL offset from the low
+            #voltage side by approach_dV
+            approach_dV = self.ETL_L_offset_backup
+            #Check we won't be outside the specified range
+            if self.ETL_L_offset_backup - approach_dV < 0:
+                approach_dV = self.ETL_L_offset_backup
+            
             self.LeftETLAmplitudeSpinBox.setValue(0)
             self.LeftETLAmplitudeSpinBox.setEnabled(False)
             self.SaveETLParametersButton.setEnabled(False)
             self.ChooseETLcfgButton.setEnabled(False)
+
+            self.LeftETLOffsetSpinBox.setValue(self.ETL_L_offset_backup - approach_dV)
+            QtCore.QTimer.singleShot(200,lambda: self.LeftETLOffsetSpinBox.setValue(self.ETL_L_offset_backup))
+
             if self.ShutterComboBox.currentText() == 'Both':
                 self.RightETLOffsetSpinBox.setEnabled(False)
                 self.RightETLAmplitudeSpinBox.setEnabled(False)

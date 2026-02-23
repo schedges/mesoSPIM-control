@@ -64,6 +64,9 @@ class mesoSPIM_ImageWriter(QtCore.QObject):
             print(msg)
 
     def prepare_acquisition(self, acq, acq_list,abs_f_pos,abs_z_pos):
+        #self.frame_queue.clear()
+        #self.timestamp_queue.clear()
+
         self.folder = acq['folder']
         self.filename = replace_with_underscores(acq['filename'])
         self.path = os.path.realpath(self.folder+'/'+self.filename)

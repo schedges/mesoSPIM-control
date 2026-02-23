@@ -804,17 +804,18 @@ class mesoSPIM_Core(QtCore.QObject):
         if self.TTL_mode_enabled_in_cfg is True:
             first_nonzero_z = self.z_steps[np.flatnonzero(self.z_steps)[0]] if len(np.flatnonzero(self.z_steps)) > 0 else 0
             first_nonzero_f = self.f_steps[np.flatnonzero(self.f_steps)[0]] if len(np.flatnonzero(self.f_steps)) > 0 else 0
-            
+
             self.move_relative({"x_rel":0,"y_rel":0,"z_rel":-1*first_nonzero_z,"f_rel":-1*first_nonzero_f,"theta_rel":0})
-            time.sleep(0.1)
+            time.sleep(0.5)
             self.move_relative({"x_rel":0,"y_rel":0,"z_rel":first_nonzero_z,"f_rel":first_nonzero_f,"theta_rel":0})
-            time.sleep(0.1)
+            time.sleep(0.5)
             self.sig_state_request.emit({'ttl_movement_enabled_during_acq': True})
             time.sleep(0.05)
 
         #Get absolute positions for tracking/writing
         self.serial_worker.stage.report_position()
         abs_pos_start = self.serial_worker.stage.state['position_absolute']
+        #TODO replace with first_nonzero if in TTL
         self.abs_z_positions = [abs_pos_start['z_pos']]
         self.abs_f_positions = [abs_pos_start['f_pos']]
         for i in range(0,len(self.f_steps)-1):
@@ -854,15 +855,17 @@ class mesoSPIM_Core(QtCore.QObject):
                 self.sig_add_images_to_image_series.emit(acq, acq_list)
 
                 #Update current parameters
-                f_abs = self.abs_f_positions[i] if i < len(self.abs_f_positions) else None
-                z_abs = self.abs_z_positions[i] if i < len(self.abs_z_positions) else None
+                self.serial_worker.stage.report_position() 
+                f_abs = self.serial_worker.stage.state['position_absolute']['f_pos']
+                z_abs = self.serial_worker.stage.state['position_absolute']['z_pos']
 
                 self.sig_acq_status.emit(f"Displayed Slice {i+1}/{steps} | Z: {z_abs}  F: {f_abs}")
                             
                 ''' Get the current correct f_step and z step '''
-                move_dict = {"x_rel":0,"y_rel":0,"z_rel":self.z_steps[i],"f_rel":self.f_steps[i],"theta_rel":0}
-                logger.debug(f'move_dict: {move_dict}')
-                self.move_relative(move_dict)
+                if self.TTL_mode_enabled_in_cfg is False:
+                    move_dict = {"x_rel":0,"y_rel":0,"z_rel":self.z_steps[i],"f_rel":self.f_steps[i],"theta_rel":0}
+                    logger.debug(f'move_dict: {move_dict}')
+                    self.move_relative(move_dict)
 
                 ''' The pauseflag allows:
                     - pausing running acquisitions

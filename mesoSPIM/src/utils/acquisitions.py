@@ -187,7 +187,7 @@ class Acquisition(indexed.IndexedOrderedDict):
                 'f_abs': self['f_end'],
                 }
 
-    def get_f_and_z_steps(self,f_stage_min_step_um=0.25):
+    def get_f_and_z_steps(self,f_stage_min_step_um=0.0055069):
         nSteps = self.get_image_count()
 
         #Calculate focus steps
@@ -195,7 +195,7 @@ class Acquisition(indexed.IndexedOrderedDict):
         #Round each positions to the nearest step
         f_positions = np.round(f_positions / f_stage_min_step_um) * f_stage_min_step_um
         #Deal with floating point nonsense
-        f_positions = np.round(f_positions,5)
+        f_positions = np.round(f_positions,7)
         #Calculate deltas
         f_steps = np.diff(f_positions)
 
