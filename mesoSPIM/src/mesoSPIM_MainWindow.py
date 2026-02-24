@@ -760,19 +760,21 @@ class mesoSPIM_MainWindow(QtWidgets.QMainWindow):
             #Store current values
             self.ETL_L_amp_backup = self.LeftETLAmplitudeSpinBox.value()
             self.ETL_L_offset_backup = self.LeftETLOffsetSpinBox.value()
-            #For consistency, we will approach the ETL offset from the low
+            #For consistency, we will approach the ETL offset from the high
             #voltage side by approach_dV
             approach_dV = self.ETL_L_offset_backup
             #Check we won't be outside the specified range
-            if self.ETL_L_offset_backup - approach_dV < 0:
+            if self.ETL_L_offset_backup + approach_dV <= 5:
                 approach_dV = self.ETL_L_offset_backup
+            else:
+                approach_dV = 5 - self.ETL_L_offset_backup
             
             self.LeftETLAmplitudeSpinBox.setValue(0)
             self.LeftETLAmplitudeSpinBox.setEnabled(False)
             self.SaveETLParametersButton.setEnabled(False)
             self.ChooseETLcfgButton.setEnabled(False)
 
-            self.LeftETLOffsetSpinBox.setValue(self.ETL_L_offset_backup - approach_dV)
+            self.LeftETLOffsetSpinBox.setValue(self.ETL_L_offset_backup + approach_dV)
             QtCore.QTimer.singleShot(200,lambda: self.LeftETLOffsetSpinBox.setValue(self.ETL_L_offset_backup))
 
             if self.ShutterComboBox.currentText() == 'Both':

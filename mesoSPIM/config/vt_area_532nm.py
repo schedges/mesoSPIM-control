@@ -148,52 +148,49 @@ scale_galvo_amp_with_zoom = True
 ####################################
 ## CALCULATE UNIFORM ILLUMINATION ##
 ####################################
-#We make our own calculation of the settings here
-sam_dict = {}
+#We calculate waveform lengths and delays here. Our current approach is to start the galvos, camera exposure, laser pulse, and ETL at t=0, and have them end prior to the end of the waveform to allow the stage motion/ETL to settle
+run_dict = {}
+run_dict["user_target_exposure_sec"] = 0.294 #If this is long enough, we modify it to line up with galvos timing
+run_dict["galvos_freq"] = 199.9 #Hz, recommended setting. 199.9Hz is max and may require active cooling for large amps (2x lens)
+run_dict["settle_time_sec"] = 0.5 #After camera exposure stops, allows motion stages, ETL to settle at start locations prior to next sweep
 
-#User inputs target exposure, we calculate the actual exposure close to this to give a uniform scan of the galvos over the image
-sam_dict["user_target_exposure_sec"] = 40
-sam_dict["user_target_exposure_sec"] = 0.294
-sam_dict["zoom"] = "5x"
-
-#The rest of these the user should not have to change
-sam_dict["galvos_frequency"] = 199.9 #Hz, recommended setting. 199.9Hz is max and may require active cooling for large amps (2x lens)
-sam_dict["galvos_duty_cycle"] = 50 #50% up and 50% down
-sam_dict["galvos_phase"] = np.pi*(1+sam_dict["galvos_duty_cycle"]/100.) #Set galvos phase to always occur on the falling edge of the off-cycle
-sam_dict["samplerate"] = 100000 #NI sampling rate
-
-#Estimate of scanning rate--we want the waist to scan over each pixel 2x via the galvos
-beam_waist_guess_m = 0.000005
-zoom = int(sam_dict["zoom"][:-1])
-beam_waist_guess_pixels = beam_waist_guess_m / (pixelsize[sam_dict["zoom"]] * 1e-6)
-galvos_scan_time = 0.5/sam_dict["galvos_frequency"] #How long it takes to do one half of a scan
-raw_galvos_nScans = sam_dict["user_target_exposure_sec"] / (camera_parameters['y_pixels']/beam_waist_guess_pixels*galvos_scan_time) #Calculate how many galvos scans we can do per x-pixel (column)
-sam_dict["galvos_nScans"] = round(raw_galvos_nScans) #Round to an integer number
-#We allow shorter exposures, but note they may not provide uniform illumination
-if sam_dict["galvos_nScans"] < 1:
-    print("Warning! exposure time not long enough to provide uniform illumination with galvos")
-    sam_dict["exposure_time"] = sam_dict["user_target_exposure_sec"]
-    sam_dict["sweeptime"] = sam_dict["exposure_time"]+2
+#Calculate exposure time
+galvos_duty_cycle = 50 #50% up and 50% down
+galvos_phase = np.pi*(1 + galvos_duty_cycle/100.) #Galvos set to start at the peak in the falling direction
+sample_freq_hz = 100000 #NI card sampling frequency
+galvos_scan_time_sec = 0.5/run_dict["galvos_freq"] #Up or down time, not both
+#Ensure waist illuminates each sample at least once as it moves up and down across the FOV
+numGalvosScans_per_pixel_per_exposure = run_dict["user_target_exposure_sec"] / (camera_parameters["y_pixels"] * galvos_scan_time_sec) #Note the camera is rotated 90-def, so y-pixels corresponds to the X direction
+rounded_galvos_scans_per_pixel_per_exposure = int(round(numGalvosScans_per_pixel_per_exposure))
+if rounded_galvos_scans_per_pixel_per_exposure < 1:
+  exposure_time_sec = run_dict["user_target_exposure_sec"] 
 else:
-    sam_dict["exposure_time"] = sam_dict["galvos_nScans"] * camera_parameters['y_pixels']/beam_waist_guess_pixels * galvos_scan_time #actual exposure time
-    sam_dict["sweeptime"] = sam_dict["exposure_time"]
+  exposure_time_sec = rounded_galvos_scans_per_pixel_per_exposure*galvos_scan_time_sec*camera_parameters["y_pixels"]
+#Round to nearest sample
+exposure_time_samples = int(round(exposure_time_sec * sample_freq_hz))
+run_dict["exposure_time_sec"] = exposure_time_samples / sample_freq_hz
 
-#add checks we aren't trying for too short of an exposure time
-nSamples = int(round(sam_dict['samplerate'] * sam_dict['sweeptime']))
-sam_dict['sweeptime'] = round(nSamples/sam_dict["samplerate"],5)
-sam_dict['exposure_time'] = round(nSamples/sam_dict["samplerate"],5)
+#Calculate sweep time
+sweep_time_sec = run_dict["exposure_time_sec"] + run_dict["settle_time_sec"]
+sweep_time_samples = int(round(sweep_time_sec * sample_freq_hz))
+run_dict["sweep_time_sec"] = sweep_time_samples/sample_freq_hz
 
-#Print calculated settings
-for key in sam_dict.keys():
-    print(key,sam_dict[key])
+#Calculate camera settings
+camera_exposure_time_percent = round(run_dict["exposure_time_sec"]/float(run_dict["sweep_time_sec"])*100,2)
+
+#Calculate ETL ramp/fall percentages
+run_dict["etl_l_ramp_rising_%"] = run_dict["etl_l_ramp_falling_%"] = round(camera_exposure_time_percent/2.,2)
+
+#Calculate laser settings
+run_dict["laser_pulse_%"] = camera_exposure_time_percent
 
 ############################
 ## SET INITIAL PARAMETERS ##
 ############################
 startup = {
     'state' : 'init', # 'init', 'idle' , 'live', 'snap', 'running_script'
-    'samplerate' : sam_dict["samplerate"],
-    'sweeptime' : sam_dict["sweeptime"],
+    'samplerate' : sample_freq_hz,
+    'sweeptime' : run_dict["sweep_time_sec"],
     'position' : {'x_pos':0,'y_pos':0,'z_pos':0,'f_pos':0,'theta_pos':0}, #Don't believe this actually does anything...
     'ETL_cfg_file' : 'config/etl_parameters/ETL-parameters-benchtop.csv',
     'folder' : 'C:/Users/labuser/Desktop/data/',
@@ -204,14 +201,14 @@ startup = {
     'pixelsize' : 0.92,
     'laser' : '532 nm',
     'max_laser_voltage':5,
-    'intensity' : 10,
+    'intensity' : 5,
     'shutterstate':False, # Is the shutter open or not?
     'shutterconfig':'Left', # Can be "Left", "Right","Both","Interleaved"
     'laser_interleaving':False,
     'filter' : 'Empty',
-    'etl_l_delay_%' : 10,
-    'etl_l_ramp_rising_%' : 45,
-    'etl_l_ramp_falling_%' : 45,
+    'etl_l_delay_%' : 0,
+    'etl_l_ramp_rising_%' : run_dict["etl_l_ramp_rising_%"],
+    'etl_l_ramp_falling_%' :  run_dict["etl_l_ramp_falling_%"],
     'etl_l_amplitude' : 0.34,
     'etl_l_offset' : 3.65,
     'etl_r_delay_%' : 0,
@@ -219,26 +216,26 @@ startup = {
     'etl_r_ramp_falling_%' : 0,
     'etl_r_amplitude' : 0.37,
     'etl_r_offset' : 3.6,
-    'galvo_l_frequency' : sam_dict['galvos_frequency'],
+    'galvo_l_frequency' : run_dict['galvos_freq'],
     'galvo_l_amplitude' : 0.55,
     'galvo_l_offset' : 0.08,
-    'galvo_l_duty_cycle' : sam_dict['galvos_duty_cycle'],
-    'galvo_l_phase' : sam_dict["galvos_phase"],
+    'galvo_l_duty_cycle' : galvos_duty_cycle,
+    'galvo_l_phase' : galvos_phase,
     #There is some bug where the right galvos frequency is messing with the software even when disabled...
-    'galvo_r_frequency' : sam_dict['galvos_frequency'],
+    'galvo_r_frequency' : run_dict['galvos_freq'],
     'galvo_r_offset' : 0,
-    'galvo_r_duty_cycle' : sam_dict["galvos_duty_cycle"],
-    'galvo_r_phase' : sam_dict["galvos_phase"],
-    'laser_l_delay_%' : 10,
-    'laser_l_pulse_%' : 89.90,
+    'galvo_r_duty_cycle' : galvos_duty_cycle,
+    'galvo_r_phase' : galvos_phase,
+    'laser_l_delay_%' : 0,
+    'laser_l_pulse_%' : run_dict["laser_pulse_%"],
     'laser_l_max_amplitude_%' : 100,
     'laser_r_delay_%' :  0,
     'laser_r_pulse_%' :  99,
     'laser_r_max_amplitude_%' : 100,
-    'camera_delay_%' : 10,
+    'camera_delay_%' : 0,
     'camera_pulse_%' : 1,
-    'camera_exposure_time': sam_dict['exposure_time'],
-    'camera_line_interval':0.000075, # Hamamatsu-specific parameter
+    'camera_exposure_time': run_dict['exposure_time_sec'],
+    'camera_line_interval':0.000075, # Hamamatsu-specific parameter, not needed in area mode
     'camera_display_live_subsampling': 1, # un-deprecated for older computers
     'camera_display_acquisition_subsampling': 1, # un-deprecated for older computers  
     'camera_display_temporal_subsampling': 1, # newly added for performance and stability boost
